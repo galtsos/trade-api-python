@@ -9,7 +9,7 @@ with open('README.md', 'r') as fh:
 setuptools.setup(
     name='galts-trade-api',
     version='0.0.1',
-    license='MIT',
+    license='Mozilla Public License 2.0',
     author='Sergey Nevmerzhitsky',
     author_email='sergey.nevmerzhitsky@gmail.com',
     description='A framework to use a trading infrastructure',
@@ -30,7 +30,7 @@ setuptools.setup(
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Financial and Insurance Industry',
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)',
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.7',
