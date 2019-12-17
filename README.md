@@ -1,2 +1,2 @@
-# trade-api-python
+# A framework to trade
 
