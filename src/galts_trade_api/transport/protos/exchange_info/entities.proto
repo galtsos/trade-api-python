@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+message Asset {
+    int32 id = 1;
+    string tag = 2;
+    google.protobuf.Timestamp create_time = 3;
+    google.protobuf.Timestamp delete_time = 4;
+    string name = 5;
+    int32 precision = 6;
+}
+
+message Assets {
+    repeated Asset assets = 1;
+}
+
+message Symbol {
+    int32 id = 1;
+    google.protobuf.Timestamp create_time = 2;
+    google.protobuf.Timestamp delete_time = 3;
+    int32 base_asset_id = 4;
+    int32 quote_asset_id = 5;
+}
+
+message Market {
+    int32 id = 1;
+    string custom_tag = 2;
+    google.protobuf.Timestamp create_time = 3;
+    google.protobuf.Timestamp delete_time = 4;
+    int32 symbol_id = 5;
+    int32 exchange_id = 6;
+    string trade_endpoint = 7;
+}
+
+message Exchange {
+    int32 id = 1;
+    string tag = 2;
+    google.protobuf.Timestamp create_time = 3;
+    google.protobuf.Timestamp delete_time = 4;
+    string name = 5;
+    google.protobuf.Timestamp disable_time = 6;
+}

@@ -1,0 +1,17 @@
+version: "3.7"
+
+services:
+  devbox:
+    build:
+      context: .
+      dockerfile: Dockerfile-devbox
+    volumes:
+      - type: bind
+        source: ./examples
+        target: /var/app/examples
+      - type: bind
+        source: ./src
+        target: /var/app/src
+      - type: bind
+        source: ./tests
+        target: /var/app/tests

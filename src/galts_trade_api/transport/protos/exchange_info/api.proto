@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "protos/exchange-info/entities.proto";
+import "protos/common.proto";
+
+service ExchangeInfoApi {
+    rpc StartSession (google.protobuf.Empty) returns (SessionHash);
+    rpc FinishSession (SessionHash) returns (BoolResult);
+    rpc SubscribeToEntitiesChange (SubscribeToEntitiesChangeIn)
+        returns (stream SubscribeToEntitiesChangeOut);
+    rpc GetEntities (EntityKinds) returns (Entities);
+    rpc AddAsset (AddAssetIn) returns (Id);
+    rpc GetAsset (Id) returns (Asset);
+    rpc DeleteAsset (Id) returns (google.protobuf.Empty);
+    rpc AddSymbol (AddSymbolIn) returns (Id);
+    rpc GetSymbol (Id) returns (Symbol);
+    rpc DeleteSymbol (Id) returns (google.protobuf.Empty);
+    rpc AddMarket (AddMarketIn) returns (Id);
+    rpc GetMarket (Id) returns (Market);
+    rpc DeleteMarket (Id) returns (google.protobuf.Empty);
+    rpc AddExchange (AddExchangeIn) returns (Id);
+    rpc GetExchange (Id) returns (Exchange);
+    rpc DeleteExchange (Id) returns (google.protobuf.Empty);
+    rpc DisableExchange (Id) returns (google.protobuf.Empty);
+    rpc EnableExchange (Id) returns (google.protobuf.Empty);
+}
+
+message Id {
+    int32 id = 1;
+}
+
+message EntityKinds {
+    repeated EntityKind entity_kinds = 1;
+}
+
+message Entities {
+    map<int32, Asset> assets = 1;
+    map<int32, Symbol> symbols = 2;
+    map<int32, Market> markets = 3;
+    map<int32, Exchange> exchanges = 4;
+}
+
+message AddAssetIn {
+    string name = 1;
+    string tag = 2;
+    int32 precision = 3;
+}
+
+message AddSymbolIn {
+    int32 base_asset_id = 1;
+    int32 quote_asset_id = 2;
+}
+
+message AddMarketIn {
+    string custom_tag = 1;
+    int32 symbol_id = 2;
+    int32 exchange_id = 3;
+    string trade_endpoint = 4;
+}
+
+message AddExchangeIn {
+    string name = 1;
+    string tag = 2;
+}
+
+message SubscribeToEntitiesChangeIn {
+    string session_hash = 1;
+    repeated EntityKind entity_kinds = 2;
+}
+
+message SubscribeToEntitiesChangeOut {
+    int64 counter = 1;
+    int64 counter_prev = 2;
+    oneof kind {
+        Asset asset = 3;
+        Symbol symbol = 4;
+        Market market = 5;
+        Exchange exchange = 6;
+    }
+}
+
+enum EntityKind {
+    ASSET = 0;
+    SYMBOL = 1;
+    MARKET = 2;
+    EXCHANGE = 3;
+}
