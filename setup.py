@@ -16,7 +16,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     keywords=['crypto', 'trading'],
-    python_requires='~=3.6',
+    python_requires='~=3.7',
     install_requires=[
         'aio-pika~=5.0',
         'grpcio~=1.20',
