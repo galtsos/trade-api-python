@@ -121,7 +121,7 @@ class RealTransportFactory(TransportFactory):
         self._depth_scraping_queue_dsn = sanity_string(depth_scraping_queue_dsn)
         self._depth_scraping_queue_exchange = sanity_string(depth_scraping_queue_exchange)
 
-    async def init(self, on_exception: OnExceptionCallable) -> None:
+    async def init(self) -> None:
         if self._process:
             raise RuntimeError('A process for RealTransportFactory should be created only once')
 
@@ -131,7 +131,7 @@ class RealTransportFactory(TransportFactory):
         )
         self._process.start()
 
-        self._response_router = PipeResponseRouter(self._parent_connection, on_exception)
+        self._response_router = PipeResponseRouter(self._parent_connection)
         task = asyncio.create_task(self._response_router.start())
 
         def task_done_cb(t: asyncio.Task):

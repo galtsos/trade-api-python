@@ -47,14 +47,8 @@ class PipeRequest:
 
 
 class PipeResponseRouter:
-    def __init__(
-        self,
-        connection: Connection,
-        on_exception: OnExceptionCallable,
-        poll_delay: float = 0.001
-    ):
+    def __init__(self, connection: Connection, poll_delay: float = 0.001):
         self._connection = connection
-        self._on_exception = on_exception
         self._poll_delay = float(poll_delay)
         self._consumers: MutableMapping[PipeRequest, MessageConsumerCollection] = {}
 
@@ -82,17 +76,7 @@ class PipeResponseRouter:
         if request not in self._consumers:
             return
 
-        task = asyncio.create_task(self._consumers[request].notify(data))
-
-        def task_done_cb(t: asyncio.Task):
-            if t.cancelled():
-                return
-
-            if t.exception() is not None:
-                self._on_exception(t.exception())
-                raise t.exception()
-
-        task.add_done_callback(task_done_cb)
+        asyncio.create_task(self._consumers[request].notify(data))
 
     def init_response_consumer(self, request: PipeRequest) -> MessageConsumerCollection:
         if request not in self._consumers:
@@ -102,7 +86,7 @@ class PipeResponseRouter:
 
 
 class TransportFactory(ABC):
-    async def init(self, on_exception: OnExceptionCallable) -> None:
+    async def init(self) -> None:
         pass
 
     def shutdown(self) -> None:

@@ -7,12 +7,7 @@ from .transport import OnExceptionCallable, TransportFactory
 
 
 class Terminal:
-    def __init__(
-        self,
-        transport: TransportFactory,
-        on_exception: Optional[OnExceptionCallable] = None
-    ):
-        self._on_exception = on_exception if on_exception else lambda: None
+    def __init__(self, transport: TransportFactory):
         self._transport_factory: TransportFactory = transport
         self._exchange_entities_inited = Event()
         self._exchanges: Dict[str, Exchange] = {}
@@ -28,7 +23,7 @@ class Terminal:
         self._transport_factory = value
 
     async def init_transport(self) -> None:
-        await self.transport_factory.init(self._on_exception)
+        await self.transport_factory.init()
 
     def shutdown_transport(self) -> None:
         self.transport_factory.shutdown()
