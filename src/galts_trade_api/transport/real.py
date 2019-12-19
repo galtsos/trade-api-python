@@ -136,10 +136,11 @@ class RealTransportFactory(TransportFactory):
 
         def task_done_cb(t: asyncio.Task):
             if t.cancelled():
+                self.shutdown()
                 return
 
-            if t.exception() is not None:
-                on_exception(t.exception())
+            if t.exception():
+                self.shutdown()
                 raise t.exception()
 
         task.add_done_callback(task_done_cb)
