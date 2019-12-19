@@ -75,17 +75,17 @@ async def on_price(
         f'len(bids)={len(bids)} len(asks)={len(asks)}')
 
 
-# Inspired by https://www.roguelynn.com/words/asyncio-exception-handling/
-async def shutdown(loop, signal=None):
-    """Cleanup tasks tied to the program's shutdown."""
-    if signal:
-        print(f'Received exit signal {signal.name}...')
+async def signal_handler(signal, loop: asyncio.AbstractEventLoop):
+    print(f'Received exit signal {signal.name}...')
+    await shutdown(loop)
 
+
+# Inspired by https://www.roguelynn.com/words/asyncio-exception-handling/
+async def shutdown(loop: asyncio.AbstractEventLoop):
+    """Cleanup tasks tied to the program's shutdown."""
     print('Shutting down...')
 
     other_tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
-    import pprint;
-    pprint.pprint(other_tasks)
 
     [task.cancel() for task in other_tasks]
 
@@ -101,10 +101,9 @@ def main():
 
     signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
     for s in signals:
-        loop.add_signal_handler(s, lambda s=s: asyncio.create_task(shutdown(loop, s)))
+        loop.add_signal_handler(s, lambda s=s: loop.create_task(signal_handler(s, loop)))
 
     try:
-        # loop.run_until_complete(start_trade_system())
         loop.create_task(start_trade_system())
         loop.run_forever()
     finally:
