@@ -203,9 +203,9 @@ class RealTransportProcess(Process):
         }
 
     def run(self) -> None:
-        run_program_forever(self._main)
+        run_program_forever(self.main)
 
-    async def _main(self, program_env: AsyncProgramEnv) -> None:
+    async def main(self, program_env: AsyncProgramEnv) -> None:
         def exception_handler(local_loop: asyncio.AbstractEventLoop, context: Dict) -> None:
             if 'exception' in context:
                 self._notify_owner_process(context['exception'])
@@ -223,22 +223,6 @@ class RealTransportProcess(Process):
 
             handler = self._find_handler_for_request(request)
             asyncio.create_task(handler(request))
-
-    def _notify_owner_process(self, original_exception: Exception) -> None:
-        # This wrapping is required to don't fire unnecessary errors about serialization
-        # of the exception. Otherwise a framework user will see unrequired spam about
-        # pickling RLock etc in logs.
-        wrapped_exception = TransportFactoryException('An error in the transport process')
-        wrapped_exception.__cause__ = original_exception
-
-        self._connection.send([wrapped_exception])
-
-    def _find_handler_for_request(self, request: PipeRequest) -> Callable[..., Awaitable]:
-        request_type = type(request)
-        if request_type not in self._handlers:
-            raise ValueError(f'No handler for request type {request_type}')
-
-        return self._handlers[request_type]
 
     async def init_exchange_entities(self, request: InitExchangeEntitiesRequest) -> None:
         client = ExchangeInfoClient.factory(request.dsn, timeout_get_entities=request.timeout)
@@ -261,6 +245,22 @@ class RealTransportProcess(Process):
 
         for routing_key in routing_keys:
             await queue.bind(consumer.exchange, routing_key)
+
+    def _notify_owner_process(self, original_exception: Exception) -> None:
+        # This wrapping is required to don't fire unnecessary errors about serialization
+        # of the exception. Otherwise a framework user will see unrequired spam about
+        # pickling RLock etc in logs.
+        wrapped_exception = TransportFactoryException('An error in the transport process')
+        wrapped_exception.__cause__ = original_exception
+
+        self._connection.send([wrapped_exception])
+
+    def _find_handler_for_request(self, request: PipeRequest) -> Callable[..., Awaitable]:
+        request_type = type(request)
+        if request_type not in self._handlers:
+            raise ValueError(f'No handler for request type {request_type}')
+
+        return self._handlers[request_type]
 
     def _response_owner_request(self, request: PipeRequest, content: Any):
         self._connection.send([request, content])
