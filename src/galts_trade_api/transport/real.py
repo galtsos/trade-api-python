@@ -9,8 +9,8 @@ from typing import Any, Awaitable, Callable, List, Mapping, Optional, Type
 
 import aio_pika
 
-from . import DepthConsumeKey, MessageConsumerCollection, OnExceptionCallable, PipeRequest, \
-    PipeResponseRouter, TransportFactory, TransportFactoryException
+from . import DepthConsumeKey, MessageConsumerCollection, PipeRequest, PipeResponseRouter, \
+    TransportFactory, TransportFactoryException
 from .exchange_info_client import ExchangeInfoClient
 from .grpc_utils import generate_request_id
 from ..tools import Singleton

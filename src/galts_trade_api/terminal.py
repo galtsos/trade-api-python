@@ -1,9 +1,9 @@
 from asyncio import Event, wait_for
-from typing import Dict, MutableMapping, Optional
+from typing import Dict, MutableMapping
 
 from .asset import Asset, Symbol
 from .exchange import Exchange, Market
-from .transport import OnExceptionCallable, TransportFactory
+from .transport import TransportFactory
 
 
 class Terminal:
