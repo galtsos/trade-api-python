@@ -1,14 +1,15 @@
 import asyncio
 import os
 import signal
+from functools import partial
 from typing import Any, Awaitable, Callable, Dict, Optional, Sequence
 
 LoopExceptionHandlerCallable = Callable[[asyncio.AbstractEventLoop, Dict[str, Any]], Any]
 
 
-async def signal_handler(sig: signal.Signals, loop: asyncio.AbstractEventLoop) -> None:
-    print(f'Received exit signal {sig.name}...')
-    await shutdown(loop)
+def signal_handler(sig: signal.Signals, loop: asyncio.AbstractEventLoop) -> None:
+    print(f'Received exit signal {sig.name}')
+    loop.create_task(shutdown(loop))
 
 
 # Inspired by https://www.roguelynn.com/words/asyncio-exception-handling/
@@ -46,7 +47,7 @@ def run_program_forever(
         handle_signals = {signal.SIGTERM, signal.SIGINT}
 
     for sig in handle_signals:
-        loop.add_signal_handler(sig, lambda s=sig: loop.create_task(signal_handler(s, loop)))
+        loop.add_signal_handler(sig, partial(signal_handler, sig, loop))
 
     try:
         env = AsyncProgramEnv()
