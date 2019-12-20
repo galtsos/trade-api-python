@@ -41,7 +41,7 @@ class Exchange:
     def tag(self):
         return self._tag
 
-    def add_market(self, market: Market):
+    def add_market(self, market: Market) -> None:
         if market.custom_tag in self._markets:
             raise ValueError(
                 f'Market with tag "{market.custom_tag}" already exists in exchange {self.tag}'

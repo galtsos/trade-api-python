@@ -110,7 +110,7 @@ class RealTransportFactory(TransportFactory):
         exchange_info_get_entities_timeout: Optional[float] = None,
         depth_scraping_queue_dsn: Optional[str] = None,
         depth_scraping_queue_exchange: Optional[str] = None,
-    ):
+    ) -> None:
         def sanity_string(value: Optional[str]) -> Optional[str]:
             if value is not None:
                 return str(value).strip()
@@ -134,7 +134,7 @@ class RealTransportFactory(TransportFactory):
         self._response_router = PipeResponseRouter(self._parent_connection)
         task = asyncio.create_task(self._response_router.start())
 
-        def task_done_cb(t: asyncio.Task):
+        def task_done_cb(t: asyncio.Task) -> None:
             if t.cancelled():
                 self.shutdown()
                 return
@@ -207,10 +207,10 @@ class RealTransportFactoryProcess(Process):
     async def _main(self) -> None:
         self._ready_event.set()
 
-        async def loop():
+        async def loop() -> None:
             stopped = False
 
-            def task_done_cb(t: asyncio.Task):
+            def task_done_cb(t: asyncio.Task) -> None:
                 nonlocal stopped
 
                 if t.cancelled():
@@ -257,7 +257,7 @@ class RealTransportFactoryProcess(Process):
     def _notify_about_exception(self, e: Exception) -> None:
         self._connection.send([e])
 
-    async def init_exchange_entities(self, request: InitExchangeEntitiesRequest):
+    async def init_exchange_entities(self, request: InitExchangeEntitiesRequest) -> None:
         client = ExchangeInfoClient.factory(request.dsn, timeout_get_entities=request.timeout)
         entities = client.get_entities(generate_request_id())
         self._connection.send([request, entities])

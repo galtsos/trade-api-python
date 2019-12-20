@@ -44,7 +44,7 @@ def message_to_dict(
     to datetime.
     """
 
-    def pythonify_value(field_name: str, field_value):
+    def pythonify_value(field_name: str, field_value) -> Any:
         if isinstance(field_value, Timestamp):
             dt = field_value.ToDatetime()
             if convert_datetime_to_utc:
@@ -72,7 +72,7 @@ def message_to_dict(
         return local_msg.DESCRIPTOR.fields_by_name[field_name].enum_type. \
             values_by_number.get(field_value).name
 
-    def get_actual_field_value(field_name: str, local_msg: Message):
+    def get_actual_field_value(field_name: str, local_msg: Message) -> Any:
         for field_descriptor, field_value in local_msg.ListFields():
             if field_descriptor.name == field_name:
                 if isinstance(field_value, RepeatedCompositeContainer):
@@ -125,7 +125,7 @@ def message_to_dict(
 OptionalGrpcTimeout = Optional[Union[str, int, float]]
 
 
-def correct_timeout(timeout: OptionalGrpcTimeout = None) -> Union[float, None]:
+def correct_timeout(timeout: OptionalGrpcTimeout = None) -> Optional[float]:
     if timeout is not None:
         timeout = float(timeout)
         if timeout <= 0:

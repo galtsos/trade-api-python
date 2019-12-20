@@ -8,7 +8,7 @@ from galts_trade_api.terminal import Terminal
 from galts_trade_api.transport.real import RealTransportFactory
 
 
-async def start_trade_system(program_env: AsyncProgramEnv):
+async def start_trade_system(program_env: AsyncProgramEnv) -> None:
     username = 'vasya'
     password = 'pupkin123'
     symbol_tag = 'BTCUSDT'
@@ -63,7 +63,7 @@ async def on_price(
     time: datetime.datetime,
     bids: Sequence,
     asks: Sequence
-):
+) -> None:
     print(
         f'time={time} exchange_tag={exchange_tag} market_tag={market_tag} symbol_tag={symbol_tag} '
         f'len(bids)={len(bids)} len(asks)={len(asks)}')
