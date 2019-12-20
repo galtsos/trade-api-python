@@ -6,8 +6,8 @@ from typing import Any, Awaitable, Callable, Dict, Optional, Sequence
 LoopExceptionHandlerCallable = Callable[[asyncio.AbstractEventLoop, Dict[str, Any]], Any]
 
 
-async def signal_handler(signal, loop: asyncio.AbstractEventLoop):
-    print(f'Received exit signal {signal.name}...')
+async def signal_handler(sig: signal.Signals, loop: asyncio.AbstractEventLoop):
+    print(f'Received exit signal {sig.name}...')
     await shutdown(loop)
 
 
