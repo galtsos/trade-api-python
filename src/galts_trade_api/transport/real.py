@@ -126,7 +126,7 @@ class RealTransportFactory(TransportFactory):
         if self._process:
             raise RuntimeError('A process for RealTransportFactory should be created only once')
 
-        self._process = RealTransportFactoryProcess(
+        self._process = RealTransportProcess(
             ready_event=self._process_ready,
             connection=self._child_connection
         )
@@ -184,7 +184,7 @@ class RealTransportFactory(TransportFactory):
         return result
 
 
-class RealTransportFactoryProcess(Process):
+class RealTransportProcess(Process):
     def __init__(
         self,
         *args,
