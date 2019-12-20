@@ -6,13 +6,13 @@ from typing import Any, Awaitable, Callable, Dict, Optional, Sequence
 LoopExceptionHandlerCallable = Callable[[asyncio.AbstractEventLoop, Dict[str, Any]], Any]
 
 
-async def signal_handler(sig: signal.Signals, loop: asyncio.AbstractEventLoop):
+async def signal_handler(sig: signal.Signals, loop: asyncio.AbstractEventLoop) -> None:
     print(f'Received exit signal {sig.name}...')
     await shutdown(loop)
 
 
 # Inspired by https://www.roguelynn.com/words/asyncio-exception-handling/
-async def shutdown(loop: asyncio.AbstractEventLoop):
+async def shutdown(loop: asyncio.AbstractEventLoop) -> None:
     """Cleanup tasks tied to the program's shutdown."""
     print('Shutting down...')
 
@@ -79,7 +79,7 @@ class AsyncProgramEnv:
 
         self._exception_handler_patch = value
 
-    def exception_handler(self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]):
+    def exception_handler(self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
         if self.exception_handler_patch:
             self.exception_handler_patch(loop, context)
 
