@@ -13,6 +13,7 @@ from . import DepthConsumeKey, MessageConsumerCollection, PipeRequest, PipeRespo
     TransportFactory, TransportFactoryException
 from .exchange_info_client import ExchangeInfoClient
 from .grpc_utils import generate_request_id
+from ..asyncio_helper import AsyncProgramEnv, run_program_forever
 from ..tools import Singleton
 
 AioPikaConsumeCallable = Callable[[aio_pika.IncomingMessage], Any]
@@ -202,29 +203,13 @@ class RealTransportFactoryProcess(Process):
         }
 
     def run(self) -> None:
-        asyncio.run(self._main())
+        run_program_forever(self._main, loop_debug=True)
 
-    async def _main(self) -> None:
+    async def _main(self, program_env: AsyncProgramEnv) -> None:
         self._ready_event.set()
 
         async def loop() -> None:
-            stopped = False
-
-            def task_done_cb(t: asyncio.Task) -> None:
-                nonlocal stopped
-
-                if t.cancelled():
-                    return
-
-                if t.exception() is not None:
-                    stopped = True
-                    # @TODO Test this line
-                    raise t.exception()
-
             while True:
-                if stopped:
-                    break
-
                 if not self._connection.poll():
                     await asyncio.sleep(self._poll_delay)
                     continue
@@ -232,8 +217,7 @@ class RealTransportFactoryProcess(Process):
                 request = self._connection.recv()
 
                 handler = self._find_handler_for_request(request)
-                task = asyncio.create_task(self._exception_notifier(handler(request)))
-                task.add_done_callback(task_done_cb)
+                asyncio.create_task(self._exception_notifier(handler(request)))
 
         await self._exception_notifier(loop())
 
