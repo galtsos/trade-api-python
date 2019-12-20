@@ -39,7 +39,7 @@ def run_program_forever(
         loop.set_debug(loop_debug)
 
     if handle_signals is None:
-        handle_signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+        handle_signals = {signal.SIGHUP, signal.SIGTERM, signal.SIGINT}
 
     for sig in handle_signals:
         loop.add_signal_handler(sig, lambda s=sig: loop.create_task(signal_handler(s, loop)))
