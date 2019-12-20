@@ -8,14 +8,14 @@ LoopExceptionHandlerCallable = Callable[[asyncio.AbstractEventLoop, Dict[str, An
 
 
 def signal_handler(sig: signal.Signals, loop: asyncio.AbstractEventLoop) -> None:
-    print(f'Received exit signal {sig.name}')
+    print(f'Received exit signal {sig.name} (process #{os.getpid()})')
     loop.create_task(shutdown(loop))
 
 
 # Inspired by https://www.roguelynn.com/words/asyncio-exception-handling/
 async def shutdown(loop: asyncio.AbstractEventLoop) -> None:
     """Cleanup tasks tied to the program's shutdown."""
-    print('Shutting down...')
+    print(f'Shutting down process #{os.getpid()}...')
 
     other_tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
     print(f'Cancelling {len(other_tasks)} outstanding tasks')
@@ -76,7 +76,7 @@ def run_program_forever(
     finally:
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
-        print('Successfully shutdown the program.')
+        print(f'Successfully shutdown the program (process #{os.getpid()}).')
 
 
 class AsyncProgramEnv:
