@@ -2,7 +2,7 @@ import asyncio
 import os
 import signal
 from functools import partial
-from typing import Any, Awaitable, Callable, Dict, Optional, Sequence
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
 
 LoopExceptionHandlerCallable = Callable[[asyncio.AbstractEventLoop, Dict[str, Any]], Any]
 
@@ -18,13 +18,32 @@ async def shutdown(loop: asyncio.AbstractEventLoop) -> None:
     print('Shutting down...')
 
     other_tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
-
-    [task.cancel() for task in other_tasks]
-
     print(f'Cancelling {len(other_tasks)} outstanding tasks')
-    await asyncio.gather(*other_tasks, return_exceptions=True)
+    await _cancel_tasks(loop, other_tasks)
 
     loop.stop()
+
+
+# Do it like asyncio.run()
+async def _cancel_tasks(loop: asyncio.AbstractEventLoop, tasks: List) -> None:
+    if not tasks:
+        return
+
+    for task in tasks:
+        task.cancel()
+
+    await asyncio.gather(*tasks, return_exceptions=True, loop=loop)
+
+    for task in tasks:
+        if task.cancelled():
+            continue
+
+        if task.exception():
+            loop.default_exception_handler({
+                'message': 'Unhandled exception during shutdown',
+                'exception': task.exception(),
+                'task': task,
+            })
 
 
 def run_program_forever(
