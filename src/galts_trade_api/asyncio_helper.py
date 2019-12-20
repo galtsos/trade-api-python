@@ -76,7 +76,7 @@ def run_program_forever(
     finally:
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
-        print(f'Successfully shutdown the program (process #{os.getpid()}).')
+        print(f'Successfully shutdown process #{os.getpid()}.')
 
 
 class AsyncProgramEnv:

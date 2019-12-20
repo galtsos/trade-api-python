@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import partial
 from multiprocessing import Event, Pipe, Process
 from multiprocessing.connection import Connection
-from typing import Any, Awaitable, Callable, List, Mapping, Optional, Type
+from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Type
 
 import aio_pika
 
@@ -203,23 +203,35 @@ class RealTransportFactoryProcess(Process):
         }
 
     def run(self) -> None:
-        run_program_forever(self._main, loop_debug=True)
+        run_program_forever(self._main)
 
     async def _main(self, program_env: AsyncProgramEnv) -> None:
+        def exception_handler(local_loop: asyncio.AbstractEventLoop, context: Dict) -> None:
+            if 'exception' in context:
+                self._notify_owner_process(context['exception'])
+
+        program_env.exception_handler_patch = exception_handler
+
         self._ready_event.set()
 
-        async def loop() -> None:
-            while True:
-                if not self._connection.poll():
-                    await asyncio.sleep(self._poll_delay)
-                    continue
+        while True:
+            if not self._connection.poll():
+                await asyncio.sleep(self._poll_delay)
+                continue
 
-                request = self._connection.recv()
+            request = self._connection.recv()
 
-                handler = self._find_handler_for_request(request)
-                asyncio.create_task(self._exception_notifier(handler(request)))
+            handler = self._find_handler_for_request(request)
+            asyncio.create_task(handler(request))
 
-        await self._exception_notifier(loop())
+    def _notify_owner_process(self, original_exception: Exception) -> None:
+        # This wrapping is required to don't fire unnecessary errors about serialization
+        # of the exception. Otherwise a framework user will see unrequired spam about
+        # pickling RLock etc in logs.
+        wrapped_exception = TransportFactoryException('An error in the transport process')
+        wrapped_exception.__cause__ = original_exception
+
+        self._connection.send([wrapped_exception])
 
     def _find_handler_for_request(self, request: PipeRequest) -> Callable[..., Awaitable]:
         request_type = type(request)
@@ -227,19 +239,6 @@ class RealTransportFactoryProcess(Process):
             raise ValueError(f'No handler for request type {request_type}')
 
         return self._handlers[request_type]
-
-    async def _exception_notifier(self, aw: Awaitable) -> Callable[..., Awaitable]:
-        try:
-            try:
-                return await aw
-            except Exception as e1:
-                raise TransportFactoryException() from e1
-        except Exception as e2:
-            self._notify_about_exception(e2)
-            raise
-
-    def _notify_about_exception(self, e: Exception) -> None:
-        self._connection.send([e])
 
     async def init_exchange_entities(self, request: InitExchangeEntitiesRequest) -> None:
         client = ExchangeInfoClient.factory(request.dsn, timeout_get_entities=request.timeout)

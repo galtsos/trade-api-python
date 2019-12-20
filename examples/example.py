@@ -70,4 +70,4 @@ async def on_price(
 
 
 if __name__ == '__main__':
-    run_program_forever(start_trade_system, loop_debug=True)
+    run_program_forever(start_trade_system)
