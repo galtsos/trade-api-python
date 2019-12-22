@@ -58,6 +58,9 @@ def run_program_forever(
     """
     if not loop:
         loop = asyncio.new_event_loop()
+        new_loop_created = True
+    else:
+        new_loop_created = False
 
     if loop_debug is not None:
         loop.set_debug(loop_debug)
@@ -74,8 +77,10 @@ def run_program_forever(
         loop.create_task(target(env))
         loop.run_forever()
     finally:
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
+        if new_loop_created:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
+
         print(f'Successfully shutdown process #{os.getpid()}.')
 
 
