@@ -41,32 +41,32 @@ class Terminal:
 
     async def _on_init_exchange_entities_response(
         self,
-        event: MutableMapping[str, MutableMapping]
+        data: MutableMapping[str, MutableMapping]
     ) -> None:
         properties_to_fill = ('exchanges', 'markets', 'symbols', 'assets')
 
         for prop in properties_to_fill:
-            if prop not in event:
+            if prop not in data:
                 # @TODO Stop the process on this exception
-                raise KeyError(f'init_exchange_entities event have not required key "{prop}"')
+                raise KeyError(f'init_exchange_entities data have not required key "{prop}"')
 
-            event[prop] = {k: v for k, v in event[prop].items() if not v['delete_time']}
+            data[prop] = {k: v for k, v in data[prop].items() if not v['delete_time']}
 
-        for data in event['assets'].values():
+        for data in data['assets'].values():
             key = data['tag']
             if key in self._assets:
                 raise ValueError(f'Asset with tag "{key}" already exists')
 
             self._assets[key] = Asset(self.transport_factory, **data)
 
-        for id_, data in event['symbols'].items():
+        for id_, data in data['symbols'].items():
             if id_ in self._symbols:
                 raise ValueError(f'Symbol with id {id_} already exists')
 
             self._symbols[id_] = Symbol(self.transport_factory, **data)
 
         exchanges_ids_map = {}
-        for data in event['exchanges'].values():
+        for data in data['exchanges'].values():
             key = data['tag']
             if key in self._exchanges:
                 raise ValueError(f'Exchange with tag "{key}" already exists')
@@ -75,7 +75,7 @@ class Terminal:
             self._exchanges[key] = exchange
             exchanges_ids_map[data['id']] = exchange
 
-        for data in event['markets'].values():
+        for data in data['markets'].values():
             key = data['exchange_id']
             if key not in exchanges_ids_map:
                 raise ValueError(
