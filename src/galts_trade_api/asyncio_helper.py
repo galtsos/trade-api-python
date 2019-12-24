@@ -86,8 +86,8 @@ def run_program_forever(
 
 class AsyncProgramEnv:
     """
-    Main purpose of the class is give an ability to "patch" an event loop exception handler.
-    A user can do additional shutdown tasks in the patch.
+    The main purpose of the class is to provide an ability to extend the event loop exception
+    handler. A user can perform additional shutdown tasks in the extension.
     """
 
     def __init__(self):
