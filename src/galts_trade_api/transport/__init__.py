@@ -8,7 +8,7 @@ OnExceptionCallable = Callable[[BaseException], Any]
 
 
 class DepthConsumeKey(NamedTuple):
-    exchange: str = '*'
+    exchange_tag: str = '*'
     market_tag: str = '*'
     symbol_tag: str = '*'
 
@@ -19,10 +19,10 @@ class DepthConsumeKey(NamedTuple):
             if not len(getattr(self, arg).strip()):
                 raise ValueError(f'Field {arg} should be non-empty string')
 
-        if self.exchange == self.market_tag == self.symbol_tag == '*':
+        if self.exchange_tag == self.market_tag == self.symbol_tag == '*':
             return '#'
 
-        return f'{self.exchange}.{self.market_tag}.{self.symbol_tag}'
+        return f'{self.exchange_tag}.{self.market_tag}.{self.symbol_tag}'
 
 
 class MessageConsumerCollection:
