@@ -32,7 +32,7 @@ class MessageConsumerCollection:
     def add_consumer(self, callback: Callable[..., Awaitable]) -> None:
         self._consumers.add(callback)
 
-    async def notify(self, data: Any) -> None:
+    async def send(self, data: Any) -> None:
         coroutines = [consumer(data) for consumer in self._consumers]
 
         await asyncio.gather(*coroutines)
@@ -69,14 +69,14 @@ class PipeResponseRouter:
             if len(message) != 2:
                 raise ValueError('Pipe response message can contain exactly 2 elements')
 
-            request, data = message
-            self._notify(request, data)
+            request, response = message
+            self._dispatch(request, response)
 
-    def _notify(self, request: PipeRequest, data: Any) -> None:
+    def _dispatch(self, request: PipeRequest, response: Any) -> None:
         if request not in self._consumers:
             return
 
-        asyncio.create_task(self._consumers[request].notify(data))
+        asyncio.create_task(self._consumers[request].send(response))
 
     def init_response_consumer(self, request: PipeRequest) -> MessageConsumerCollection:
         if request not in self._consumers:
