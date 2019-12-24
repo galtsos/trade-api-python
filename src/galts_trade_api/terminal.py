@@ -39,6 +39,12 @@ class Terminal:
             self._on_init_exchange_entities_response
         )
 
+    async def auth_user(self, username: str, password: str) -> bool:
+        return True
+
+    def get_exchange(self, tag: str) -> Exchange:
+        return self._exchanges[tag]
+
     async def _on_init_exchange_entities_response(
         self,
         data: MutableMapping[str, MutableMapping]
@@ -85,9 +91,3 @@ class Terminal:
             exchanges_ids_map[key].add_market(Market(self.transport_factory, **data))
 
         self._exchange_entities_inited.set()
-
-    async def auth_user(self, username: str, password: str) -> bool:
-        return True
-
-    def get_exchange(self, tag: str) -> Exchange:
-        return self._exchanges[tag]
