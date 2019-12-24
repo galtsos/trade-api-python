@@ -72,17 +72,17 @@ class PipeResponseRouter:
             request, response = message
             self._dispatch(request, response)
 
-    def _dispatch(self, request: PipeRequest, response: Any) -> None:
-        if request not in self._consumers:
-            return
-
-        asyncio.create_task(self._consumers[request].send(response))
-
     def init_response_consumer(self, request: PipeRequest) -> MessageConsumerCollection:
         if request not in self._consumers:
             self._consumers[request] = MessageConsumerCollection()
 
         return self._consumers[request]
+
+    def _dispatch(self, request: PipeRequest, response: Any) -> None:
+        if request not in self._consumers:
+            return
+
+        asyncio.create_task(self._consumers[request].send(response))
 
 
 class TransportFactory(ABC):
