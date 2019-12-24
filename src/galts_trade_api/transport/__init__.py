@@ -72,7 +72,7 @@ class PipeResponseRouter:
             request, response = message
             self._dispatch(request, response)
 
-    def init_response_consumer(self, request: PipeRequest) -> MessageConsumerCollection:
+    def prepare_consumers_of_response(self, request: PipeRequest) -> MessageConsumerCollection:
         if request not in self._consumers:
             self._consumers[request] = MessageConsumerCollection()
 

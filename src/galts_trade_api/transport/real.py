@@ -161,7 +161,7 @@ class RealTransportFactory(TransportFactory):
             self._exchange_info_dsn,
             self._exchange_info_get_entities_timeout
         )
-        result = self._response_router.init_response_consumer(request)
+        result = self._response_router.prepare_consumers_of_response(request)
         result.add_consumer(on_response)
         self._parent_connection.send(request)
 
@@ -177,7 +177,7 @@ class RealTransportFactory(TransportFactory):
             self._depth_scraping_queue_exchange,
             frozenset(consume_keys)
         )
-        result = self._response_router.init_response_consumer(request)
+        result = self._response_router.prepare_consumers_of_response(request)
         result.add_consumer(on_response)
         self._parent_connection.send(request)
 
