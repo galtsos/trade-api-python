@@ -9,16 +9,6 @@ from galts_trade_api.transport.real import RealTransportFactory
 async def start_trade_system(program_env: AsyncProgramEnv) -> None:
     username = 'vasya'
     password = 'pupkin123'
-    symbol_tag = 'BTCUSDT'
-
-    def exception_handler(local_loop: asyncio.AbstractEventLoop, context: Dict) -> None:
-        nonlocal terminal
-
-        if 'terminal' in locals():
-            terminal.shutdown_transport()
-            del terminal
-
-    program_env.exception_handler_patch = exception_handler
 
     transport = RealTransportFactory()
     transport.configure_endpoints(
