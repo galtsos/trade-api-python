@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import datetime
-from typing import Awaitable, Callable, Dict, List, Optional
+from typing import Dict, Optional
 
-from .transport import DepthConsumeKey, TransportFactory
-
-OnPriceCallable = Callable[[str, str, str, datetime.datetime, List, List], Awaitable]
+from .transport import TransportFactory
 
 
 class Exchange:
@@ -85,13 +83,3 @@ class Market:
     @property
     def custom_tag(self):
         return self._custom_tag
-
-    async def subscribe_to_prices(
-        self,
-        callback: OnPriceCallable,
-        consume_keys: Optional[List[DepthConsumeKey]] = None
-    ) -> None:
-        await self.transport_factory.get_depth_scraping_consumer(
-            lambda event: callback(*event),
-            consume_keys
-        )

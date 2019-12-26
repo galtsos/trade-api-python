@@ -1,9 +1,7 @@
-import asyncio
 import datetime
-from typing import Dict, Sequence
+from typing import Sequence
 
 from galts_trade_api.asyncio_helper import AsyncProgramEnv, run_program_forever
-from galts_trade_api.exchange import DepthConsumeKey
 from galts_trade_api.terminal import Terminal
 from galts_trade_api.transport.real import RealTransportFactory
 
@@ -40,16 +38,11 @@ async def start_trade_system(program_env: AsyncProgramEnv) -> None:
     await terminal.init_exchange_entities()
     await terminal.wait_exchange_entities_inited()
 
-    binance = terminal.get_exchange('binance')
-    print(f'binance={binance}')
-
-    market = binance.get_market_by_custom_tag(symbol_tag)
-    print(f'market={market}')
-    await market.subscribe_to_prices(
+    await terminal.subscribe_to_prices(
         on_price,
         [
-            # DepthConsumeKey(symbol_tag='BNBBTC'),
-            # DepthConsumeKey(symbol_tag='BTCUSDC'),
+            # DepthConsumeKey(exchange_tag='binance', symbol_tag='BTCUSDT'),
+            # DepthConsumeKey(exchange_tag='binance', symbol_tag='BTCUSDC'),
         ]
     )
 

@@ -1,9 +1,12 @@
+import datetime
 from asyncio import Event, wait_for
-from typing import Dict, MutableMapping, Optional
+from typing import Awaitable, Callable, Dict, List, MutableMapping, Optional
 
 from .asset import Asset, Symbol
 from .exchange import Exchange, Market
-from .transport import TransportFactory
+from .transport import DepthConsumeKey, TransportFactory
+
+OnPriceCallable = Callable[[str, str, str, datetime.datetime, List, List], Awaitable]
 
 
 class Terminal:
@@ -44,6 +47,16 @@ class Terminal:
 
     def get_exchange(self, tag: str) -> Exchange:
         return self._exchanges[tag]
+
+    async def subscribe_to_prices(
+        self,
+        callback: OnPriceCallable,
+        consume_keys: Optional[List[DepthConsumeKey]] = None
+    ) -> None:
+        await self.transport_factory.get_depth_scraping_consumer(
+            lambda event: callback(*event),
+            consume_keys
+        )
 
     async def _on_init_exchange_entities_response(
         self,
