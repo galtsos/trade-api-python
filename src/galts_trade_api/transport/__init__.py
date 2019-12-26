@@ -13,7 +13,7 @@ class DepthConsumeKey(NamedTuple):
     symbol_tag: str = '*'
 
     def format_for_rabbitmq(self) -> str:
-        required_fields = ('exchange', 'market_tag', 'symbol_tag')
+        required_fields = ('exchange_tag', 'market_tag', 'symbol_tag')
 
         for arg in required_fields:
             if not len(getattr(self, arg).strip()):
