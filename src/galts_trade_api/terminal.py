@@ -1,5 +1,5 @@
 from asyncio import Event, wait_for
-from typing import Dict, MutableMapping
+from typing import Dict, MutableMapping, Optional
 
 from .asset import Asset, Symbol
 from .exchange import Exchange, Market
@@ -22,8 +22,8 @@ class Terminal:
     def transport_factory(self, value):
         self._transport_factory = value
 
-    async def init_transport(self) -> None:
-        await self.transport_factory.init()
+    async def init_transport(self, loop_debug: Optional[bool] = None) -> None:
+        await self.transport_factory.init(loop_debug)
 
     def shutdown_transport(self) -> None:
         self.transport_factory.shutdown()

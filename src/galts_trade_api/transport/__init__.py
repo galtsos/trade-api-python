@@ -86,7 +86,7 @@ class PipeResponseRouter:
 
 
 class TransportFactory(ABC):
-    async def init(self) -> None:
+    async def init(self, loop_debug: Optional[bool] = None) -> None:
         pass
 
     def shutdown(self) -> None:

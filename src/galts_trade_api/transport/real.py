@@ -122,11 +122,12 @@ class RealTransportFactory(TransportFactory):
         self._depth_scraping_queue_dsn = sanity_string(depth_scraping_queue_dsn)
         self._depth_scraping_queue_exchange = sanity_string(depth_scraping_queue_exchange)
 
-    async def init(self) -> None:
+    async def init(self, loop_debug: Optional[bool] = None) -> None:
         if self._process:
             raise RuntimeError('A process for RealTransportFactory should be created only once')
 
         self._process = RealTransportProcess(
+            loop_debug=loop_debug,
             ready_event=self._process_ready,
             connection=self._child_connection
         )
@@ -188,12 +189,14 @@ class RealTransportProcess(Process):
     def __init__(
         self,
         *args,
+        loop_debug: Optional[bool] = None,
         ready_event: Event,
         connection: Connection,
         poll_delay: float = 0.001,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
+        self._loop_debug = loop_debug
         self._ready_event = ready_event
         self._connection = connection
         self._poll_delay = float(poll_delay)
@@ -203,7 +206,7 @@ class RealTransportProcess(Process):
         }
 
     def run(self) -> None:
-        run_program_forever(self.main)
+        run_program_forever(self.main, loop_debug=self._loop_debug)
 
     async def main(self, program_env: AsyncProgramEnv) -> None:
         def exception_handler(local_loop: asyncio.AbstractEventLoop, context: Dict) -> None:
