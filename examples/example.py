@@ -2,8 +2,11 @@ import datetime
 from typing import Sequence
 
 from galts_trade_api.asyncio_helper import AsyncProgramEnv, run_program_forever
+from galts_trade_api.structlogger import get_logger
 from galts_trade_api.terminal import DepthConsumeKey, Terminal
 from galts_trade_api.transport.real import RealTransportFactory
+
+logger = get_logger('ts')
 
 
 async def start_trade_system(program_env: AsyncProgramEnv) -> None:
@@ -16,10 +19,10 @@ async def start_trade_system(program_env: AsyncProgramEnv) -> None:
         depth_scraping_queue_dsn='amqp://depth-scraping.zone/%2F?heartbeat_interval=10',
         depth_scraping_queue_exchange='depth_updates',
     )
-    print(f'transport={transport}')
+    logger.debug(f'transport={transport}')
 
     terminal = Terminal(transport)
-    print(f'terminal={terminal}')
+    logger.debug(f'terminal={terminal}')
     await terminal.init_transport()
 
     if not await terminal.auth_user(username, password):
@@ -36,7 +39,7 @@ async def start_trade_system(program_env: AsyncProgramEnv) -> None:
         ]
     )
 
-    print('Init finished!')
+    logger.info('Init finished!')
 
 
 async def on_price(
@@ -47,9 +50,15 @@ async def on_price(
     bids: Sequence,
     asks: Sequence
 ) -> None:
-    print(
-        f'time={time} exchange_tag={exchange_tag} market_tag={market_tag} symbol_tag={symbol_tag} '
-        f'len(bids)={len(bids)} len(asks)={len(asks)}')
+    logger.info(
+        'on_price',
+        time=time,
+        exchange_tag=exchange_tag,
+        market_tag=market_tag,
+        symbol_tag=symbol_tag,
+        bids=len(bids),
+        asks=len(asks)
+    )
 
 
 if __name__ == '__main__':

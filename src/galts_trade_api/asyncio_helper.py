@@ -4,21 +4,25 @@ import signal
 from functools import partial
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
 
+from .structlogger import get_logger
+
+logger = get_logger('galts_trade_api')
+
 LoopExceptionHandlerCallable = Callable[[asyncio.AbstractEventLoop, Dict[str, Any]], Any]
 
 
 def signal_handler(sig: signal.Signals, loop: asyncio.AbstractEventLoop) -> None:
-    print(f'Received exit signal {sig.name} (process #{os.getpid()})')
+    logger.info('Received exit signal', process_id=os.getpid(), signal=sig.name)
     loop.create_task(shutdown(loop))
 
 
 # Inspired by https://www.roguelynn.com/words/asyncio-exception-handling/
 async def shutdown(loop: asyncio.AbstractEventLoop) -> None:
     """Cleanup tasks tied to the program's shutdown."""
-    print(f'Shutting down process #{os.getpid()}...')
+    logger.info(f'Shutting down', process_id=os.getpid())
 
     other_tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
-    print(f'Cancelling {len(other_tasks)} outstanding tasks')
+    logger.debug('Cancelling outstanding tasks', process_id=os.getpid(), amount=len(other_tasks))
     await _cancel_tasks(loop, other_tasks)
 
     loop.stop()
@@ -81,7 +85,7 @@ def run_program_forever(
             loop.run_until_complete(loop.shutdown_asyncgens())
             loop.close()
 
-        print(f'Successfully shutdown process #{os.getpid()}.')
+        logger.info('Successfully shutdown', process_id=os.getpid())
 
 
 class AsyncProgramEnv:
@@ -108,7 +112,7 @@ class AsyncProgramEnv:
         if self.exception_handler_patch:
             self.exception_handler_patch(loop, context)
 
-        print(f'Caught exception (process #{os.getpid()}):')
+        logger.info('Caught exception', process_id=os.getpid())
         loop.default_exception_handler(context)
 
         loop.create_task(shutdown(loop))
