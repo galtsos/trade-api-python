@@ -2,7 +2,7 @@ import asyncio
 from asyncio import Event
 from dataclasses import dataclass
 from multiprocessing.connection import Pipe
-from typing import Any, Callable, Optional, Type
+from typing import Any, Callable, Dict, Optional, Type
 
 import pytest
 
@@ -15,12 +15,12 @@ def fixture_format_for_rabbitmq_correct():
     yield 'a.b.*', ['a', 'b'], {}
     yield 'a.*.*', ['a'], {}
 
-    yield 'a.*.*', [], {'exchange': 'a'}
+    yield 'a.*.*', [], {'exchange_tag': 'a'}
     yield '*.b.*', [], {'market_tag': 'b'}
     yield '*.*.c', [], {'symbol_tag': 'c'}
 
     yield '#', ['*', '*', '*'], {}
-    yield '#', [], {'exchange': '*', 'market_tag': '*', 'symbol_tag': '*'}
+    yield '#', [], {'exchange_tag': '*', 'market_tag': '*', 'symbol_tag': '*'}
 
 
 def fixture_format_for_rabbitmq_wrong():
@@ -51,7 +51,7 @@ class TestDepthConsumeKey:
 class TestMessageConsumerCollection:
     @staticmethod
     @pytest.mark.asyncio
-    async def test_notify_will_call_multiple_consumers():
+    async def test_send_will_call_multiple_consumers():
         event1 = Event()
         event2 = Event()
         expected_data = 'test'
@@ -69,7 +69,7 @@ class TestMessageConsumerCollection:
         collection = MessageConsumerCollection()
         collection.add_consumer(consumer1)
         collection.add_consumer(consumer2)
-        await collection.notify(expected_data)
+        await collection.send(expected_data)
 
         assert event1.is_set()
         assert event2.is_set()
@@ -141,7 +141,7 @@ class TestPipeResponseRouter:
         def on_exception(local_e: BaseException):
             pytest.fail(f'Unexpected exception: {local_e}')
 
-        router = PipeResponseRouter(parent_conn, on_exception, poll_delay)
+        router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
         done_cb = self._factory_task_done_cb(router_task_done, router_task_cancelled, on_exception)
         router_task.add_done_callback(done_cb)
@@ -154,7 +154,7 @@ class TestPipeResponseRouter:
             consumer_called.set()
             assert data == expected_response
 
-        consumer_collection = router.init_response_consumer(pipe_request)
+        consumer_collection = router.prepare_consumers_of_response(pipe_request)
         consumer_collection.add_consumer(on_response)
 
         child_conn.send(response)
@@ -167,7 +167,7 @@ class TestPipeResponseRouter:
         await asyncio.wait_for(router_task_cancelled.wait(), 0.1)
 
     @pytest.mark.asyncio
-    async def test_start_notify_only_appropriate_consumer(self):
+    async def test_start_send_only_to_appropriate_consumer(self):
         pipe_request1 = RequestStub('test 1')
         pipe_request2 = RequestStub('test 2')
         response = [pipe_request1, 'test response']
@@ -182,7 +182,7 @@ class TestPipeResponseRouter:
         def on_exception(local_e: BaseException):
             pytest.fail(f'Unexpected exception: {local_e}')
 
-        router = PipeResponseRouter(parent_conn, on_exception, poll_delay)
+        router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
         done_cb = self._factory_task_done_cb(router_task_done, router_task_cancelled, on_exception)
         router_task.add_done_callback(done_cb)
@@ -193,9 +193,9 @@ class TestPipeResponseRouter:
         async def on_response2(data):
             consumer1_called.set()
 
-        consumer_collection = router.init_response_consumer(pipe_request1)
+        consumer_collection = router.prepare_consumers_of_response(pipe_request1)
         consumer_collection.add_consumer(on_response1)
-        consumer_collection = router.init_response_consumer(pipe_request2)
+        consumer_collection = router.prepare_consumers_of_response(pipe_request2)
         consumer_collection.add_consumer(on_response2)
 
         child_conn.send(response)
@@ -229,7 +229,7 @@ class TestPipeResponseRouter:
             nonlocal exception
             exception = local_e
 
-        router = PipeResponseRouter(parent_conn, lambda: None, poll_delay)
+        router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
         done_cb = self._factory_task_done_cb(
             router_task_done,
@@ -259,17 +259,20 @@ class TestPipeResponseRouter:
         poll_delay = 0.001
         exception = None
 
-        def on_exception(local_e: BaseException):
+        def on_exception(_: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
             nonlocal exception
-            exception = local_e
+            exception = context['exception']
 
-        router = PipeResponseRouter(parent_conn, on_exception, poll_delay)
+        loop = asyncio.get_running_loop()
+        loop.set_exception_handler(on_exception)
+
+        router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
 
         async def on_response(data):
             raise expected_exception
 
-        consumer_collection = router.init_response_consumer(pipe_request)
+        consumer_collection = router.prepare_consumers_of_response(pipe_request)
         consumer_collection.add_consumer(on_response)
 
         child_conn.send(response)
