@@ -63,7 +63,7 @@ class PipeResponseRouter:
             if not isinstance(message, Sequence):
                 raise ValueError('Pipe response message should be an object with indexing')
 
-            if isinstance(message[0], Exception):
+            if len(message) == 1 and isinstance(message[0], Exception):
                 raise message[0]
 
             if len(message) != 2:
