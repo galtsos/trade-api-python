@@ -5,14 +5,15 @@ from dataclasses import dataclass
 from functools import partial
 from multiprocessing import Event, Pipe, Process
 from multiprocessing.connection import Connection
-from typing import Any, Awaitable, Callable, List, Mapping, Optional, Type
+from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Type
 
 import aio_pika
 
-from . import DepthConsumeKey, MessageConsumerCollection, OnExceptionCallable, PipeRequest, \
-    PipeResponseRouter, TransportFactory, TransportFactoryException
+from . import DepthConsumeKey, MessageConsumerCollection, PipeRequest, PipeResponseRouter, \
+    TransportFactory, TransportFactoryException
 from .exchange_info_client import ExchangeInfoClient
 from .grpc_utils import generate_request_id
+from ..asyncio_helper import AsyncProgramEnv, run_program_forever
 from ..tools import Singleton
 
 AioPikaConsumeCallable = Callable[[aio_pika.IncomingMessage], Any]
@@ -110,7 +111,7 @@ class RealTransportFactory(TransportFactory):
         exchange_info_get_entities_timeout: Optional[float] = None,
         depth_scraping_queue_dsn: Optional[str] = None,
         depth_scraping_queue_exchange: Optional[str] = None,
-    ):
+    ) -> None:
         def sanity_string(value: Optional[str]) -> Optional[str]:
             if value is not None:
                 return str(value).strip()
@@ -121,25 +122,27 @@ class RealTransportFactory(TransportFactory):
         self._depth_scraping_queue_dsn = sanity_string(depth_scraping_queue_dsn)
         self._depth_scraping_queue_exchange = sanity_string(depth_scraping_queue_exchange)
 
-    async def init(self, on_exception: OnExceptionCallable) -> None:
+    async def init(self, loop_debug: Optional[bool] = None) -> None:
         if self._process:
             raise RuntimeError('A process for RealTransportFactory should be created only once')
 
-        self._process = RealTransportFactoryProcess(
+        self._process = RealTransportProcess(
+            loop_debug=loop_debug,
             ready_event=self._process_ready,
             connection=self._child_connection
         )
         self._process.start()
 
-        self._response_router = PipeResponseRouter(self._parent_connection, on_exception)
+        self._response_router = PipeResponseRouter(self._parent_connection)
         task = asyncio.create_task(self._response_router.start())
 
-        def task_done_cb(t: asyncio.Task):
+        def task_done_cb(t: asyncio.Task) -> None:
             if t.cancelled():
+                self.shutdown()
                 return
 
-            if t.exception() is not None:
-                on_exception(t.exception())
+            if t.exception():
+                self.shutdown()
                 raise t.exception()
 
         task.add_done_callback(task_done_cb)
@@ -159,7 +162,7 @@ class RealTransportFactory(TransportFactory):
             self._exchange_info_dsn,
             self._exchange_info_get_entities_timeout
         )
-        result = self._response_router.init_response_consumer(request)
+        result = self._response_router.prepare_consumers_of_response(request)
         result.add_consumer(on_response)
         self._parent_connection.send(request)
 
@@ -175,23 +178,25 @@ class RealTransportFactory(TransportFactory):
             self._depth_scraping_queue_exchange,
             frozenset(consume_keys)
         )
-        result = self._response_router.init_response_consumer(request)
+        result = self._response_router.prepare_consumers_of_response(request)
         result.add_consumer(on_response)
         self._parent_connection.send(request)
 
         return result
 
 
-class RealTransportFactoryProcess(Process):
+class RealTransportProcess(Process):
     def __init__(
         self,
         *args,
+        loop_debug: Optional[bool] = None,
         ready_event: Event,
         connection: Connection,
         poll_delay: float = 0.001,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
+        self._loop_debug = loop_debug
         self._ready_event = ready_event
         self._connection = connection
         self._poll_delay = float(poll_delay)
@@ -201,65 +206,31 @@ class RealTransportFactoryProcess(Process):
         }
 
     def run(self) -> None:
-        asyncio.run(self._main())
+        run_program_forever(self.main, loop_debug=self._loop_debug)
 
-    async def _main(self) -> None:
+    async def main(self, program_env: AsyncProgramEnv) -> None:
+        def exception_handler(local_loop: asyncio.AbstractEventLoop, context: Dict) -> None:
+            if 'exception' in context:
+                self._notify_owner_process(context['exception'])
+
+        program_env.exception_handler_patch = exception_handler
+
         self._ready_event.set()
 
-        async def loop():
-            stopped = False
+        while True:
+            if not self._connection.poll():
+                await asyncio.sleep(self._poll_delay)
+                continue
 
-            def task_done_cb(t: asyncio.Task):
-                nonlocal stopped
+            request = self._connection.recv()
 
-                if t.cancelled():
-                    return
+            handler = self._find_handler_for_request(request)
+            asyncio.create_task(handler(request))
 
-                if t.exception() is not None:
-                    stopped = True
-                    # @TODO Test this line
-                    raise t.exception()
-
-            while True:
-                if stopped:
-                    break
-
-                if not self._connection.poll():
-                    await asyncio.sleep(self._poll_delay)
-                    continue
-
-                request = self._connection.recv()
-
-                handler = self._find_handler_for_request(request)
-                task = asyncio.create_task(self._exception_notifier(handler(request)))
-                task.add_done_callback(task_done_cb)
-
-        await self._exception_notifier(loop())
-
-    def _find_handler_for_request(self, request: PipeRequest) -> Callable[..., Awaitable]:
-        request_type = type(request)
-        if request_type not in self._handlers:
-            raise ValueError(f'No handler for request type {request_type}')
-
-        return self._handlers[request_type]
-
-    async def _exception_notifier(self, aw: Awaitable) -> Callable[..., Awaitable]:
-        try:
-            try:
-                return await aw
-            except Exception as e1:
-                raise TransportFactoryException() from e1
-        except Exception as e2:
-            self._notify_about_exception(e2)
-            raise
-
-    def _notify_about_exception(self, e: Exception) -> None:
-        self._connection.send([e])
-
-    async def init_exchange_entities(self, request: InitExchangeEntitiesRequest):
+    async def init_exchange_entities(self, request: InitExchangeEntitiesRequest) -> None:
         client = ExchangeInfoClient.factory(request.dsn, timeout_get_entities=request.timeout)
         entities = client.get_entities(generate_request_id())
-        self._connection.send([request, entities])
+        self._response_owner_request(request, entities)
 
         client.destroy()
 
@@ -278,6 +249,25 @@ class RealTransportFactoryProcess(Process):
         for routing_key in routing_keys:
             await queue.bind(consumer.exchange, routing_key)
 
+    def _notify_owner_process(self, original_exception: Exception) -> None:
+        # This wrapping is required to don't fire unnecessary errors about serialization
+        # of the exception. Otherwise a framework user will see unrequired spam about
+        # pickling RLock etc in logs.
+        wrapped_exception = TransportFactoryException('An error in the transport process')
+        wrapped_exception.__cause__ = original_exception
+
+        self._connection.send([wrapped_exception])
+
+    def _find_handler_for_request(self, request: PipeRequest) -> Callable[..., Awaitable]:
+        request_type = type(request)
+        if request_type not in self._handlers:
+            raise ValueError(f'No handler for request type {request_type}')
+
+        return self._handlers[request_type]
+
+    def _response_owner_request(self, request: PipeRequest, content: Any):
+        self._connection.send([request, content])
+
     def _depth_scraping_callback(
         self,
         request: ConsumeDepthScrapingRequest,
@@ -293,4 +283,4 @@ class RealTransportFactoryProcess(Process):
             body['depth']['asks'],
         ]
 
-        self._connection.send([request, args])
+        self._response_owner_request(request, args)

@@ -8,21 +8,21 @@ OnExceptionCallable = Callable[[BaseException], Any]
 
 
 class DepthConsumeKey(NamedTuple):
-    exchange: str = '*'
+    exchange_tag: str = '*'
     market_tag: str = '*'
     symbol_tag: str = '*'
 
     def format_for_rabbitmq(self) -> str:
-        required_fields = ('exchange', 'market_tag', 'symbol_tag')
+        required_fields = ('exchange_tag', 'market_tag', 'symbol_tag')
 
         for arg in required_fields:
             if not len(getattr(self, arg).strip()):
                 raise ValueError(f'Field {arg} should be non-empty string')
 
-        if self.exchange == self.market_tag == self.symbol_tag == '*':
+        if self.exchange_tag == self.market_tag == self.symbol_tag == '*':
             return '#'
 
-        return f'{self.exchange}.{self.market_tag}.{self.symbol_tag}'
+        return f'{self.exchange_tag}.{self.market_tag}.{self.symbol_tag}'
 
 
 class MessageConsumerCollection:
@@ -32,7 +32,7 @@ class MessageConsumerCollection:
     def add_consumer(self, callback: Callable[..., Awaitable]) -> None:
         self._consumers.add(callback)
 
-    async def notify(self, data: Any) -> None:
+    async def send(self, data: Any) -> None:
         coroutines = [consumer(data) for consumer in self._consumers]
 
         await asyncio.gather(*coroutines)
@@ -47,14 +47,8 @@ class PipeRequest:
 
 
 class PipeResponseRouter:
-    def __init__(
-        self,
-        connection: Connection,
-        on_exception: OnExceptionCallable,
-        poll_delay: float = 0.001
-    ):
+    def __init__(self, connection: Connection, poll_delay: float = 0.001):
         self._connection = connection
-        self._on_exception = on_exception
         self._poll_delay = float(poll_delay)
         self._consumers: MutableMapping[PipeRequest, MessageConsumerCollection] = {}
 
@@ -75,34 +69,24 @@ class PipeResponseRouter:
             if len(message) != 2:
                 raise ValueError('Pipe response message can contain exactly 2 elements')
 
-            request, data = message
-            self._notify(request, data)
+            request, response = message
+            self._dispatch(request, response)
 
-    def _notify(self, request: PipeRequest, data: Any) -> None:
-        if request not in self._consumers:
-            return
-
-        task = asyncio.create_task(self._consumers[request].notify(data))
-
-        def task_done_cb(t: asyncio.Task):
-            if t.cancelled():
-                return
-
-            if t.exception() is not None:
-                self._on_exception(t.exception())
-                raise t.exception()
-
-        task.add_done_callback(task_done_cb)
-
-    def init_response_consumer(self, request: PipeRequest) -> MessageConsumerCollection:
+    def prepare_consumers_of_response(self, request: PipeRequest) -> MessageConsumerCollection:
         if request not in self._consumers:
             self._consumers[request] = MessageConsumerCollection()
 
         return self._consumers[request]
 
+    def _dispatch(self, request: PipeRequest, response: Any) -> None:
+        if request not in self._consumers:
+            return
+
+        asyncio.create_task(self._consumers[request].send(response))
+
 
 class TransportFactory(ABC):
-    async def init(self, on_exception: OnExceptionCallable) -> None:
+    async def init(self, loop_debug: Optional[bool] = None) -> None:
         pass
 
     def shutdown(self) -> None:

@@ -1,4 +1,5 @@
 import pickle
+from typing import Dict, Tuple
 
 
 class Singleton(type):
@@ -22,7 +23,7 @@ class Singleton(type):
         return cls._instances[key]
 
     @classmethod
-    def _calculate_args_hash(mcs, args, kwargs):
+    def _calculate_args_hash(mcs, args: Tuple, kwargs: Dict) -> int:
         filtered_args = [args[i] for i in range(len(args)) if i in mcs._hash_args]
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in mcs._hash_kwargs}
         hash_source = (filtered_args, filtered_kwargs)

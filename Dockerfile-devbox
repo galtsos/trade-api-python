@@ -3,11 +3,13 @@ LABEL maintainer="sergey.nevmerzhitsky@gmail.com"
 
 WORKDIR /var/app
 
+RUN set -e; \
+    pip install pytest pytest-asyncio grpcio-testing structlog ujson
+
 COPY examples ./examples
 COPY src ./src
 COPY tests ./tests
 COPY pytest.ini README.md setup.py ./
 
 RUN set -e; \
-    pip install pytest pytest-asyncio grpcio-testing; \
     pip install -e .

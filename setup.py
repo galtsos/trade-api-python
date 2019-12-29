@@ -21,6 +21,8 @@ setuptools.setup(
         'aio-pika~=5.0',
         'grpcio~=1.20',
         'protobuf~=3.11',  # Required by grpc_utils
+        'structlog~=19.2.0',
+        'ujson~=1.35',
     ],
     packages=setuptools.find_packages('src'),
     # https://packaging.python.org/guides/distributing-packages-using-setuptools/#py-modules
