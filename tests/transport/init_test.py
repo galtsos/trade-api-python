@@ -2,7 +2,7 @@ import asyncio
 from asyncio import Event
 from dataclasses import dataclass
 from multiprocessing.connection import Pipe
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Dict, Optional, Type
 
 import pytest
 
@@ -95,31 +95,6 @@ def fixture_start_exceptions():
 
 
 class TestPipeResponseRouter:
-    @staticmethod
-    def _factory_task_done_cb(
-        task_done: Event,
-        task_cancelled: Event,
-        on_exception: Callable,
-        is_exception_expected: bool = False
-    ):
-        def result(t: asyncio.Task):
-            task_done.set()
-
-            if t.cancelled():
-                task_cancelled.set()
-                return
-
-            if t.exception() is not None:
-                on_exception(t.exception())
-                raise t.exception()
-
-            if not is_exception_expected:
-                # Cannot throw exception here because the stack can be not the main task
-                # of a thread, therefore the exception won't be propagated.
-                pytest.fail('The task was supposed to done by explicit cancellation')
-
-        return result
-
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         'expected_response, sleep_after_start, pipe_request, response',
@@ -133,18 +108,16 @@ class TestPipeResponseRouter:
         response: Any,
     ):
         parent_conn, child_conn = Pipe()
-        router_task_done = Event()
-        router_task_cancelled = Event()
         consumer_called = Event()
         poll_delay = 0.001
 
-        def on_exception(local_e: BaseException):
-            pytest.fail(f'Unexpected exception: {local_e}')
+        def on_exception(_: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+            pytest.fail(f"Unexpected exception: {context['exception']}")
+
+        asyncio.get_running_loop().set_exception_handler(on_exception)
 
         router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
-        done_cb = self._factory_task_done_cb(router_task_done, router_task_cancelled, on_exception)
-        router_task.add_done_callback(done_cb)
 
         # Give the task time to some work like it will be in real usage
         if sleep_after_start:
@@ -164,7 +137,6 @@ class TestPipeResponseRouter:
         assert consumer_called.is_set()
 
         router_task.cancel()
-        await asyncio.wait_for(router_task_cancelled.wait(), 0.1)
 
     @pytest.mark.asyncio
     async def test_start_send_only_to_appropriate_consumer(self):
@@ -173,19 +145,17 @@ class TestPipeResponseRouter:
         response = [pipe_request1, 'test response']
 
         parent_conn, child_conn = Pipe()
-        router_task_done = Event()
-        router_task_cancelled = Event()
         consumer1_called = Event()
         consumer2_called = Event()
         poll_delay = 0.001
 
-        def on_exception(local_e: BaseException):
-            pytest.fail(f'Unexpected exception: {local_e}')
+        def on_exception(_: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+            pytest.fail(f"Unexpected exception: {context['exception']}")
+
+        asyncio.get_running_loop().set_exception_handler(on_exception)
 
         router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
-        done_cb = self._factory_task_done_cb(router_task_done, router_task_cancelled, on_exception)
-        router_task.add_done_callback(done_cb)
 
         async def on_response1(data):
             consumer1_called.set()
@@ -206,7 +176,6 @@ class TestPipeResponseRouter:
         assert not consumer2_called.is_set()
 
         router_task.cancel()
-        await asyncio.wait_for(router_task_cancelled.wait(), 0.1)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -220,33 +189,17 @@ class TestPipeResponseRouter:
         expected_exception_msg: Optional[str]
     ):
         parent_conn, child_conn = Pipe()
-        router_task_done = Event()
-        router_task_cancelled = Event()
         poll_delay = 0.001
-        exception = None
-
-        def on_exception(local_e: BaseException):
-            nonlocal exception
-            exception = local_e
 
         router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
-        done_cb = self._factory_task_done_cb(
-            router_task_done,
-            router_task_cancelled,
-            on_exception,
-            True
-        )
-        router_task.add_done_callback(done_cb)
 
         child_conn.send(response)
 
-        await asyncio.sleep(poll_delay * 5)
+        await asyncio.sleep(poll_delay * 50)
 
-        assert exception.__class__ is expected_exception_class
-        assert expected_exception_msg in str(exception)
-
-        await asyncio.wait_for(router_task_done.wait(), 0.1)
+        with pytest.raises(expected_exception_class, match=expected_exception_msg):
+            router_task.result()
 
     @pytest.mark.asyncio
     async def test_start_exceptions_in_consumer_task(self):
@@ -263,8 +216,7 @@ class TestPipeResponseRouter:
             nonlocal exception
             exception = context['exception']
 
-        loop = asyncio.get_running_loop()
-        loop.set_exception_handler(on_exception)
+        asyncio.get_running_loop().set_exception_handler(on_exception)
 
         router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
