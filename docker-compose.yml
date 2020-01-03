@@ -15,3 +15,13 @@ services:
       - type: bind
         source: ./tests
         target: /var/app/tests
+  tox:
+    build:
+      context: .
+      dockerfile: Dockerfile-tox
+    working_dir: /docker
+    command: tox
+    volumes:
+      - type: bind
+        source: .
+        target: /docker
