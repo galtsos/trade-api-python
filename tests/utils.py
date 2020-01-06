@@ -5,8 +5,18 @@ from contextlib import contextmanager
 from threading import Event, Thread
 from time import perf_counter
 from typing import Any, Callable, Dict, Generator
+from unittest.mock import MagicMock
 
 import grpc
+
+try:
+    from unittest.mock import AsyncMock
+except ImportError:
+    # For simple testing of async code in Python 3.7
+    # Got from https://stackoverflow.com/a/32498408/3155344
+    class AsyncMock(MagicMock):
+        async def __call__(self, *args, **kwargs):
+            return super(AsyncMock, self).__call__(*args, **kwargs)
 
 
 def wait_for_result(
