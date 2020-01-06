@@ -1,5 +1,6 @@
 import ast
 import inspect
+import sys
 import time
 from contextlib import contextmanager
 from threading import Event, Thread
@@ -9,10 +10,10 @@ from unittest.mock import MagicMock
 
 import grpc
 
-try:
+if sys.version_info >= (3, 8):
     from unittest.mock import AsyncMock
-except ImportError:
-    # For simple testing of async code in Python 3.7
+else:
+    # For simple testing of async code in Python before 3.8
     # Got from https://stackoverflow.com/a/32498408/3155344
     class AsyncMock(MagicMock):
         async def __call__(self, *args, **kwargs):
