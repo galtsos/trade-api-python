@@ -1,8 +1,9 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+import aio_pika
 import pytest
 
-from galts_trade_api.transport.real import RabbitConnection
+from galts_trade_api.transport.real import RabbitConnection, RabbitConsumer
 from ..utils import AsyncMock
 
 
@@ -55,3 +56,47 @@ class TestRabbitConnection:
 
         connect_robust.assert_called_once_with(dsn)
         result.set_qos.assert_called_once_with(prefetch_count=prefetch_count)
+
+
+class TestRabbitConsumer:
+    def test_constructor_trim_exchange_name(self):
+        exchange_name = ' \t test.local  '
+        expected_exchange_name = exchange_name.strip()
+        assert exchange_name != expected_exchange_name
+
+        channel = Mock(spec_set=aio_pika.Channel)
+        consumer = RabbitConsumer(channel, exchange_name, lambda: None)
+
+        assert consumer.exchange_name == expected_exchange_name
+
+    @pytest.mark.asyncio
+    async def test_create_queue_use_delivered_exchange_name(self):
+        channel = AsyncMock(spec_set=aio_pika.Channel)
+        exchange_name = 'an_exchange'
+
+        def cb(): pass
+
+        consumer = RabbitConsumer(channel, exchange_name, cb)
+
+        result = await consumer.create_queue()
+
+        channel.declare_exchange.assert_called_once_with(exchange_name, passive=True)
+        channel.declare_queue.assert_called_once_with(exclusive=True)
+        assert channel.declare_queue.return_value is result
+        result.consume.assert_called_once_with(cb, no_ack=True)
+
+    @pytest.mark.asyncio
+    async def test_create_queue_setup_properties(self):
+        channel = AsyncMock(spec_set=aio_pika.Channel)
+        exchange_name = 'an_exchange'
+
+        def cb(): pass
+
+        consumer = RabbitConsumer(channel, exchange_name, cb)
+
+        assert consumer.channel is channel
+
+        await consumer.create_queue()
+
+        assert channel.declare_exchange.return_value is consumer.exchange
+        assert channel.declare_queue.return_value is consumer.queue
