@@ -55,7 +55,7 @@ class RabbitConnection(
         return channel
 
 
-class RabbitQueueConsumer:
+class RabbitConsumer:
     def __init__(
         self,
         channel: aio_pika.Channel,
@@ -69,12 +69,12 @@ class RabbitQueueConsumer:
         self._queue: Optional[aio_pika.Queue] = None
 
     @property
-    def exchange_name(self):
-        return self._exchange_name
-
-    @property
     def channel(self):
         return self._channel
+
+    @property
+    def exchange_name(self):
+        return self._exchange_name
 
     @property
     def exchange(self):
@@ -238,7 +238,7 @@ class RealTransportProcess(Process):
         connection = RabbitConnection(request.dsn)
         channel = await connection.create_channel(100)
         cb = partial(self._depth_scraping_callback, request)
-        consumer = RabbitQueueConsumer(channel, request.exchange, cb)
+        consumer = RabbitConsumer(channel, request.exchange, cb)
         queue = await consumer.create_queue()
 
         if not request.consume_keys:
