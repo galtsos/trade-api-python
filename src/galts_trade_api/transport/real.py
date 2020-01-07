@@ -46,7 +46,7 @@ class RabbitConnection(
         return self._connection
 
     async def create_channel(self, prefetch_count: int = 100) -> aio_pika.Channel:
-        if not self._connection:
+        if self._connection is None:
             self._connection = await aio_pika.connect_robust(self._dsn)
 
         channel = await self._connection.channel()
