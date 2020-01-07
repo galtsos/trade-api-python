@@ -67,7 +67,7 @@ class PipeResponseRouter:
                 raise message[0]
 
             if len(message) != 2:
-                raise ValueError('Pipe response message can contain exactly 2 elements')
+                raise ValueError('Pipe response message should contain exactly 2 elements')
 
             request, response = message
             self._dispatch(request, response)
