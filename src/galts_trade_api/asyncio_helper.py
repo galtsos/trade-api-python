@@ -58,7 +58,7 @@ def run_program_forever(
 ) -> None:
     """
     Args:
-        - handle_signals: If None then these signals will be handled: SIGTERM, SIGINT.
+        handle_signals: If None then these signals will be handled: SIGTERM, SIGINT.
     """
     if not loop:
         loop = asyncio.new_event_loop()
