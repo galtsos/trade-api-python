@@ -230,7 +230,7 @@ class RealTransportProcess(Process):
     async def init_exchange_entities(self, request: InitExchangeEntitiesRequest) -> None:
         client = ExchangeInfoClient.factory(request.dsn, timeout_get_entities=request.timeout)
         entities = client.get_entities(generate_request_id())
-        self._response_owner_request(request, entities)
+        self._respond_to_owner_request(request, entities)
 
         client.destroy()
 
@@ -265,7 +265,7 @@ class RealTransportProcess(Process):
 
         return self._handlers[request_type]
 
-    def _response_owner_request(self, request: PipeRequest, content: Any):
+    def _respond_to_owner_request(self, request: PipeRequest, content: Any):
         self._connection.send([request, content])
 
     def _depth_scraping_callback(
@@ -283,4 +283,4 @@ class RealTransportProcess(Process):
             body['depth']['asks'],
         ]
 
-        self._response_owner_request(request, args)
+        self._respond_to_owner_request(request, args)
