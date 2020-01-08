@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import inspect
 import sys
 import time
@@ -95,3 +96,10 @@ def fixture_grpc_error_status_codes(*args) -> Generator:
 
     for status_code in error_status_codes:
         yield (status_code, *args)
+
+
+def cancel_other_tasks():
+    """For async loop clean-up purposes"""
+    for t in asyncio.all_tasks():
+        if t is not asyncio.current_task():
+            t.cancel()
