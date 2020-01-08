@@ -208,7 +208,7 @@ class RealTransportProcess(Process):
         run_program_forever(self.main, loop_debug=self._loop_debug)
 
     async def main(self, program_env: AsyncProgramEnv) -> None:
-        def exception_handler(local_loop: asyncio.AbstractEventLoop, context: Dict) -> None:
+        def exception_handler(_, context: Dict) -> None:
             if 'exception' in context:
                 self._notify_owner_process(context['exception'])
 
