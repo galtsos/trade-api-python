@@ -97,9 +97,9 @@ class RealTransportFactory(TransportFactory):
     def __init__(
         self,
         exchange_info_dsn: Optional[str] = None,
-        exchange_info_get_entities_timeout: Optional[float] = None,
+        exchange_info_get_entities_timeout: float = 5.0,
         depth_scraping_queue_dsn: Optional[str] = None,
-        depth_scraping_queue_exchange: Optional[str] = None,
+        depth_scraping_queue_exchange: Optional[str] = None
     ):
         super().__init__()
         self._process: Optional[Process] = None
@@ -111,15 +111,10 @@ class RealTransportFactory(TransportFactory):
             if value is not None:
                 return str(value).strip()
 
-        self._exchange_info_dsn: Optional[str] = sanity_string(exchange_info_dsn)
-        self._depth_scraping_queue_dsn: Optional[str] = sanity_string(depth_scraping_queue_dsn)
-        self._depth_scraping_queue_exchange: Optional[str] = sanity_string(
-            depth_scraping_queue_exchange
-        )
-
-        self._exchange_info_get_entities_timeout: float = 5.0
-        if exchange_info_get_entities_timeout is not None:
-            self._exchange_info_get_entities_timeout = float(exchange_info_get_entities_timeout)
+        self._exchange_info_dsn = sanity_string(exchange_info_dsn)
+        self._exchange_info_get_entities_timeout = float(exchange_info_get_entities_timeout)
+        self._depth_scraping_queue_dsn = sanity_string(depth_scraping_queue_dsn)
+        self._depth_scraping_queue_exchange = sanity_string(depth_scraping_queue_exchange)
 
     async def init(self, loop_debug: Optional[bool] = None) -> None:
         if self._process:
