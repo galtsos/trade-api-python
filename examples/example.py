@@ -13,8 +13,7 @@ async def start_trade_system(program_env: AsyncProgramEnv) -> None:
     username = 'vasya'
     password = 'pupkin123'
 
-    transport = RealTransportFactory()
-    transport.configure_endpoints(
+    transport = RealTransportFactory(
         exchange_info_dsn='exchange-info.zone:50051',
         depth_scraping_queue_dsn='amqp://depth-scraping.zone/%2F?heartbeat_interval=10',
         depth_scraping_queue_exchange='depth_updates',
