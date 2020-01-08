@@ -1,0 +1,4 @@
+.git/
+.tox/
+dist/
+htmlcov/

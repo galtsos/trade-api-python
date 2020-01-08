@@ -1,0 +1,51 @@
+FROM alpine:3.10
+LABEL maintainer="sergey.nevmerzhitsky@gmail.com"
+# Inspired by https://hub.docker.com/r/kiwicom/tox but it non-extendible unfortunately
+
+ENV PATH="$PATH:/root/.pyenv/bin:/root/.pyenv/shims"
+
+RUN set -ex; \
+    apk add --no-cache --virtual=.build-deps \
+        bzip2-dev \
+        curl \
+        git \
+        linux-headers \
+        ncurses-dev \
+        openssl-dev \
+        patch \
+        sqlite-dev \
+        readline-dev \
+        xz-dev \
+        zlib-dev \
+    ; \
+    apk add --no-cache --virtual=.run-deps \
+        bash \
+        build-base \
+        bzip2 \
+        ca-certificates \
+        libbz2 \
+        libffi \
+        libffi-dev \
+        ncurses \
+        openssl \
+        postgresql-dev \
+        readline \
+        sqlite \
+        sqlite-libs \
+        xz \
+        zlib \
+    ; \
+    curl --location https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash; \
+    pyenv update; \
+    pyenv install 3.7.5; \
+    pyenv install 3.8.0; \
+    pyenv global 3.8.0 3.7.5; \
+    pyenv rehash; \
+    pip install tox==3.14.2; \
+    apk del .build-deps; \
+    rm -rf /var/cache/apk/*; \
+    rm -rf /tmp/*; \
+    find /root/.pyenv/versions -type d '(' -name '__pycache__' -o -name 'test' -o -name 'tests' ')' -exec rm -rfv '{}' +; \
+    find /root/.pyenv/versions -type f '(' -name '*.py[co]' -o -name '*.exe' ')' -exec rm -fv '{}' +
+
+CMD ["tox"]

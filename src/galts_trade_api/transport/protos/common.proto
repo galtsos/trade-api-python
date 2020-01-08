@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message BoolResult {
+    bool result = 1;
+}
+
+message MarketId {
+    string exchange = 1;
+    string symbol = 2;
+}
+
+message SessionHash {
+    string session_hash = 1;
+}
