@@ -132,6 +132,9 @@ class RealTransportFactory(TransportFactory):
         )
         self._process.start()
 
+        if not self._process_ready.wait(2):
+            raise RuntimeError('Failed to initialize RealTransportFactory in time')
+
         self._response_router = PipeResponseRouter(self._parent_connection)
         task = asyncio.create_task(self._response_router.start())
 
@@ -145,9 +148,6 @@ class RealTransportFactory(TransportFactory):
                 raise t.exception()
 
         task.add_done_callback(task_done_cb)
-
-        if not self._process_ready.wait(2):
-            raise RuntimeError('Failed to initialize RealTransportFactory in time')
 
     def shutdown(self) -> None:
         if self._process:
