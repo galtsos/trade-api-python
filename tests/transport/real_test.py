@@ -133,6 +133,8 @@ class TestRealTransportFactory:
         )
         process_class.instance.start.assert_called_once()
 
+        cancel_other_tasks()
+
     @pytest.mark.asyncio
     async def test_init_exception_for_second_call(self):
         factory = RealTransportFactory()
@@ -145,6 +147,8 @@ class TestRealTransportFactory:
                 )
                 await factory.init()
                 await factory.init()
+
+        cancel_other_tasks()
 
     @pytest.mark.asyncio
     async def test_init_exception_for_long_transport_process_init(self):
