@@ -1,5 +1,5 @@
 from typing import Callable
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import ANY, Mock
 
 import aio_pika
 import pytest
@@ -23,37 +23,38 @@ class TestRabbitConnection:
         assert conn.connection is None
 
     @pytest.mark.asyncio
-    async def test_constructor_trim_dsn(self):
+    async def test_constructor_trim_dsn(self, mocker):
         dsn = ' \t test4.local  '
         expected_dsn = dsn.strip()
         assert dsn != expected_dsn
 
-        conn = RabbitConnection(dsn)
+        connect_robust = mocker.patch('aio_pika.connect_robust', new_callable=AsyncMock)
 
-        with patch('aio_pika.connect_robust', new_callable=AsyncMock) as connect_robust:
-            await conn.create_channel()
+        conn = RabbitConnection(dsn)
+        await conn.create_channel()
 
         connect_robust.assert_called_once_with(expected_dsn)
 
     @pytest.mark.asyncio
-    async def test_create_channel_reuse_one_connection(self):
-        conn = RabbitConnection('test5.local')
+    async def test_create_channel_reuse_one_connection(self, mocker):
+        mocker.patch('aio_pika.connect_robust', new_callable=AsyncMock)
 
-        with patch('aio_pika.connect_robust', new_callable=AsyncMock):
-            await conn.create_channel()
-            first_execution_connection = conn.connection
-            await conn.create_channel()
+        conn = RabbitConnection('test5.local')
+        await conn.create_channel()
+        first_execution_connection = conn.connection
+        await conn.create_channel()
 
         assert conn.connection is first_execution_connection
 
     @pytest.mark.asyncio
-    async def test_create_channel_use_delivered_dsn(self):
+    async def test_create_channel_use_delivered_dsn(self, mocker):
+        connect_robust = mocker.patch('aio_pika.connect_robust', new_callable=AsyncMock)
+
         dsn = 'test6.local'
         conn = RabbitConnection(dsn)
         prefetch_count = 50
 
-        with patch('aio_pika.connect_robust', new_callable=AsyncMock) as connect_robust:
-            result = await conn.create_channel(prefetch_count=prefetch_count)
+        result = await conn.create_channel(prefetch_count=prefetch_count)
 
         connect_robust.assert_called_once_with(dsn)
         result.set_qos.assert_called_once_with(prefetch_count=prefetch_count)
@@ -116,68 +117,72 @@ class TestRealTransportFactory:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize('loop_debug', fixture_init_starts_transport_process())
-    async def test_init_starts_transport_process(self, loop_debug):
+    async def test_init_starts_transport_process(self, mocker, loop_debug):
+        process_cls = mocker.patch(
+            'galts_trade_api.transport.real.RealTransportProcess',
+            autospec=True
+        )
+        process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
+
         factory = RealTransportFactory()
+        await factory.init(loop_debug=loop_debug)
 
-        process_patch_path = 'galts_trade_api.transport.real.RealTransportProcess'
-        with patch(process_patch_path, autospec=True) as process_class:
-            process_class.side_effect = self._factory_process_constructor_which_set_event(
-                process_class
-            )
-            await factory.init(loop_debug=loop_debug)
-
-        process_class.assert_called_once_with(
+        process_cls.assert_called_once_with(
             loop_debug=loop_debug,
             connection=ANY,
             ready_event=ANY
         )
-        process_class.instance.start.assert_called_once()
+        process_cls.instance.start.assert_called_once()
 
         cancel_other_tasks()
 
     @pytest.mark.asyncio
-    async def test_init_exception_for_second_call(self):
+    async def test_init_exception_for_second_call(self, mocker):
+        process_cls = mocker.patch(
+            'galts_trade_api.transport.real.RealTransportProcess',
+            autospec=True
+        )
+        process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
+
         factory = RealTransportFactory()
 
-        patch_path = 'galts_trade_api.transport.real.RealTransportProcess'
-        with patch(patch_path, autospec=True) as process_class:
-            with pytest.raises(RuntimeError, match='should be created only once'):
-                process_class.side_effect = self._factory_process_constructor_which_set_event(
-                    process_class
-                )
-                await factory.init()
-                await factory.init()
-
-        cancel_other_tasks()
-
-    @pytest.mark.asyncio
-    async def test_init_exception_for_long_transport_process_init(self):
-        factory = RealTransportFactory(process_ready_timeout=0.1)
-
-        with patch('galts_trade_api.transport.real.RealTransportProcess', autospec=True):
-            with pytest.raises(RuntimeError, match='Failed to initialize'):
-                await factory.init()
-
-    @pytest.mark.asyncio
-    async def test_init_starts_router_task(self):
-        factory = RealTransportFactory(process_ready_timeout=0.1)
-
-        process_patch_path = 'galts_trade_api.transport.real.RealTransportProcess'
-        router_patch_path = 'galts_trade_api.transport.real.PipeResponseRouter'
-        with patch(process_patch_path, autospec=True) as process_class, \
-            patch(router_patch_path, autospec=True) as router_class, \
-            patch('asyncio.create_task', autospec=True) as create_task:
-            process_class.side_effect = self._factory_process_constructor_which_set_event(
-                process_class
-            )
+        with pytest.raises(RuntimeError, match='should be created only once'):
+            await factory.init()
             await factory.init()
 
         cancel_other_tasks()
 
-        router_class.assert_called_once()
-        router_class.return_value.start.assert_called_once()
+    @pytest.mark.asyncio
+    async def test_init_exception_for_long_transport_process_init(self, mocker):
+        mocker.patch('galts_trade_api.transport.real.RealTransportProcess', autospec=True)
 
-        create_task.assert_called_once_with(router_class.return_value.start())
+        factory = RealTransportFactory(process_ready_timeout=0.1)
+
+        with pytest.raises(RuntimeError, match='Failed to initialize'):
+            await factory.init()
+
+    @pytest.mark.asyncio
+    async def test_init_starts_router_task(self, mocker):
+        process_cls = mocker.patch(
+            'galts_trade_api.transport.real.RealTransportProcess',
+            autospec=True
+        )
+        process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
+        router_cls = mocker.patch(
+            'galts_trade_api.transport.real.PipeResponseRouter',
+            autospec=True
+        )
+        create_task = mocker.patch('asyncio.create_task', autospec=True)
+
+        factory = RealTransportFactory(process_ready_timeout=0.1)
+        await factory.init()
+
+        cancel_other_tasks()
+
+        router_cls.assert_called_once()
+        router_cls.return_value.start.assert_called_once()
+
+        create_task.assert_called_once_with(router_cls.return_value.start())
         create_task.return_value.add_done_callback.assert_called_once()
 
     @classmethod
