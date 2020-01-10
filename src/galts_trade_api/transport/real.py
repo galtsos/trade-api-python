@@ -118,6 +118,26 @@ class RealTransportFactory(TransportFactory):
         self._depth_scraping_queue_exchange = sanity_string(depth_scraping_queue_exchange)
         self._process_ready_timeout = float(process_ready_timeout)
 
+    @property
+    def exchange_info_dsn(self):
+        return self._exchange_info_dsn
+
+    @property
+    def exchange_info_get_entities_timeout(self):
+        return self._exchange_info_get_entities_timeout
+
+    @property
+    def depth_scraping_queue_dsn(self):
+        return self._depth_scraping_queue_dsn
+
+    @property
+    def depth_scraping_queue_exchange(self):
+        return self._depth_scraping_queue_exchange
+
+    @property
+    def process_ready_timeout(self):
+        return self._process_ready_timeout
+
     async def init(self, loop_debug: Optional[bool] = None) -> None:
         if self._process:
             raise RuntimeError('A process for RealTransportFactory should be created only once')
@@ -129,7 +149,7 @@ class RealTransportFactory(TransportFactory):
         )
         self._process.start()
 
-        if not self._process_ready.wait(self._process_ready_timeout):
+        if not self._process_ready.wait(self.process_ready_timeout):
             raise RuntimeError('Failed to initialize RealTransportFactory in time')
 
         self._response_router = PipeResponseRouter(self._parent_connection)
@@ -155,8 +175,8 @@ class RealTransportFactory(TransportFactory):
         on_response: Callable[..., Awaitable]
     ) -> MessageConsumerCollection:
         request = InitExchangeEntitiesRequest(
-            self._exchange_info_dsn,
-            self._exchange_info_get_entities_timeout
+            self.exchange_info_dsn,
+            self.exchange_info_get_entities_timeout
         )
         result = self._response_router.prepare_consumers_of_response(request)
         result.add_consumer(on_response)
@@ -170,8 +190,8 @@ class RealTransportFactory(TransportFactory):
         consume_keys: Optional[List[DepthConsumeKey]] = None
     ) -> MessageConsumerCollection:
         request = ConsumeDepthScrapingRequest(
-            self._depth_scraping_queue_dsn,
-            self._depth_scraping_queue_exchange,
+            self.depth_scraping_queue_dsn,
+            self.depth_scraping_queue_exchange,
             frozenset(consume_keys)
         )
         result = self._response_router.prepare_consumers_of_response(request)
