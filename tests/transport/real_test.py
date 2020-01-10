@@ -1,3 +1,4 @@
+import asyncio
 from typing import Callable
 from unittest.mock import ANY, Mock
 
@@ -184,6 +185,61 @@ class TestRealTransportFactory:
 
         create_task.assert_called_once_with(router_cls.return_value.start())
         create_task.return_value.add_done_callback.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_init_set_done_callback_for_router_task_which_shutdown_on_cancellation(
+        self,
+        mocker
+    ):
+        factory_shutdown = mocker.patch.object(RealTransportFactory, 'shutdown')
+        process_cls = mocker.patch(
+            'galts_trade_api.transport.real.RealTransportProcess',
+            autospec=True
+        )
+        process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
+        router_cls = mocker.patch(
+            'galts_trade_api.transport.real.PipeResponseRouter',
+            autospec=True
+        )
+
+        async def start(): await asyncio.sleep(1)
+
+        router_cls.return_value.start.return_value = start()
+
+        factory = RealTransportFactory(process_ready_timeout=0.1)
+        await factory.init()
+
+        cancel_other_tasks()
+
+        # Pass a loop iteration to execute the done callback
+        await asyncio.sleep(0.001)
+
+        factory_shutdown.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_init_set_done_callback_for_router_task_which_shutdown_on_exception(self, mocker):
+        factory_shutdown = mocker.patch.object(RealTransportFactory, 'shutdown')
+        process_cls = mocker.patch(
+            'galts_trade_api.transport.real.RealTransportProcess',
+            autospec=True
+        )
+        process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
+        router_cls = mocker.patch(
+            'galts_trade_api.transport.real.PipeResponseRouter',
+            autospec=True
+        )
+
+        async def start(): raise RuntimeError('Halt router')
+
+        router_cls.return_value.start.return_value = start()
+
+        factory = RealTransportFactory(process_ready_timeout=0.1)
+        await factory.init()
+
+        # Pass a loop iteration to execute the done callback
+        await asyncio.sleep(0.001)
+
+        factory_shutdown.assert_called_once()
 
     @classmethod
     def _factory_process_constructor_which_set_event(
