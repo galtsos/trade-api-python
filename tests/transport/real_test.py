@@ -6,8 +6,8 @@ from unittest.mock import ANY, Mock
 import aio_pika
 import pytest
 
-from galts_trade_api.transport.real import InitExchangeEntitiesRequest, RabbitConnection, \
-    RabbitConsumer, RealTransportFactory
+from galts_trade_api.transport.real import ConsumeDepthScrapingRequest, \
+    InitExchangeEntitiesRequest, RabbitConnection, RabbitConsumer, RealTransportFactory
 from ..utils import AsyncMock, cancel_other_tasks
 
 
@@ -150,6 +150,38 @@ def fixture_init_starts_transport_process():
     yield None
     yield True
     yield False
+
+
+def fixture_test_remote_methods_setup_callback():
+    exchange_info_dsn = 'test.local'
+    exchange_info_get_entities_timeout = 1.0
+    constructor_args1 = {
+        'exchange_info_dsn': exchange_info_dsn,
+        'exchange_info_get_entities_timeout': exchange_info_get_entities_timeout,
+    }
+    response1 = InitExchangeEntitiesRequest(
+        exchange_info_dsn,
+        exchange_info_get_entities_timeout
+    )
+
+    yield constructor_args1, 'init_exchange_entities', {}, response1
+
+    depth_scraping_queue_dsn = 'test.local'
+    depth_scraping_queue_exchange = 'test-exchange'
+    constructor_args2 = {
+        'depth_scraping_queue_dsn': depth_scraping_queue_dsn,
+        'depth_scraping_queue_exchange': depth_scraping_queue_exchange,
+    }
+    method_args2 = {
+        'consume_keys': [],
+    }
+    response2 = ConsumeDepthScrapingRequest(
+        depth_scraping_queue_dsn,
+        depth_scraping_queue_exchange,
+        frozenset()
+    )
+
+    yield constructor_args2, 'get_depth_scraping_consumer', method_args2, response2
 
 
 @pytest.mark.usefixtures('unexpected_exceptions_handler')
@@ -310,9 +342,18 @@ class TestRealTransportFactory:
         cancel_other_tasks()
 
     @pytest.mark.asyncio
-    async def test_init_exchange_entities_setup_callback(self, mocker):
-        expected_dsn = 'test.local'
-        expected_timeout = 1.0
+    @pytest.mark.parametrize(
+        'factory_args, factory_method_name, factory_method_args, expected_request',
+        fixture_test_remote_methods_setup_callback()
+    )
+    async def test_remote_methods_setup_callback(
+        self,
+        mocker,
+        factory_args,
+        factory_method_name,
+        factory_method_args,
+        expected_request
+    ):
         expected_response = 'test response'
 
         pipe_cls = mocker.patch('galts_trade_api.transport.real.Pipe', autospec=True)
@@ -328,17 +369,12 @@ class TestRealTransportFactory:
         async def cb(data):
             assert data == expected_response
 
-        factory = self._get_factory_instance(
-            exchange_info_dsn=expected_dsn,
-            exchange_info_get_entities_timeout=expected_timeout
-        )
+        factory = self._get_factory_instance(**factory_args)
         await factory.init()
-        consumer = await factory.init_exchange_entities(cb)
+        consumer = await getattr(factory, factory_method_name)(cb, **factory_method_args)
         await consumer.send(expected_response)
 
-        parent_connection_mock.send.assert_called_once_with(
-            InitExchangeEntitiesRequest(dsn=expected_dsn, timeout=expected_timeout)
-        )
+        parent_connection_mock.send.assert_called_once_with(expected_request)
 
         cancel_other_tasks()
 
