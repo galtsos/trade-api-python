@@ -1,11 +1,13 @@
 import asyncio
-from typing import Callable
+from multiprocessing.connection import Connection
+from typing import Any, Callable, Dict
 from unittest.mock import ANY, Mock
 
 import aio_pika
 import pytest
 
-from galts_trade_api.transport.real import RabbitConnection, RabbitConsumer, RealTransportFactory
+from galts_trade_api.transport.real import InitExchangeEntitiesRequest, RabbitConnection, \
+    RabbitConsumer, RealTransportFactory
 from ..utils import AsyncMock, cancel_other_tasks
 
 
@@ -269,6 +271,55 @@ class TestRealTransportFactory:
         await asyncio.sleep(0.001)
 
         factory_shutdown.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_shutdown_calls_process(self, mocker):
+        process_cls = mocker.patch(
+            'galts_trade_api.transport.real.RealTransportProcess',
+            autospec=True
+        )
+        process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
+
+        factory = self._get_factory_instance()
+        await factory.init()
+        factory.shutdown()
+
+        process_cls.instance.terminate.assert_called_once()
+
+        cancel_other_tasks()
+
+    @pytest.mark.asyncio
+    async def test_init_exchange_entities_setup_callback(self, mocker):
+        expected_dsn = 'test.local'
+        expected_timeout = 1.0
+        expected_response = 'test response'
+
+        pipe_cls = mocker.patch('galts_trade_api.transport.real.Pipe', autospec=True)
+        parent_connection_mock = Mock(spec_set=Connection, **{'poll.return_value': False})
+        child_connection_mock = Mock(spec_set=Connection)
+        pipe_cls.return_value = (parent_connection_mock, child_connection_mock)
+        process_cls = mocker.patch(
+            'galts_trade_api.transport.real.RealTransportProcess',
+            autospec=True
+        )
+        process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
+
+        async def cb(data):
+            assert data == expected_response
+
+        factory = self._get_factory_instance(
+            exchange_info_dsn=expected_dsn,
+            exchange_info_get_entities_timeout=expected_timeout
+        )
+        await factory.init()
+        consumer = await factory.init_exchange_entities(cb)
+        await consumer.send(expected_response)
+
+        parent_connection_mock.send.assert_called_once_with(
+            InitExchangeEntitiesRequest(dsn=expected_dsn, timeout=expected_timeout)
+        )
+
+        cancel_other_tasks()
 
     @classmethod
     def _get_factory_instance(
