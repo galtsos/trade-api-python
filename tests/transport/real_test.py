@@ -105,6 +105,33 @@ class TestRabbitConsumer:
         assert channel.declare_queue.return_value is consumer.queue
 
 
+def fixture_constructor_cast_properties():
+    # String properties
+    props = (
+        'exchange_info_dsn',
+        'depth_scraping_queue_dsn',
+        'depth_scraping_queue_exchange',
+    )
+
+    for prop in props:
+        yield prop, None, None
+        yield prop, 1, '1'
+        yield prop, 2.0, '2.0'
+        yield prop, False, 'False'
+        yield prop, ' test ', 'test'
+
+    # Float properties
+    props = (
+        'exchange_info_get_entities_timeout',
+        'process_ready_timeout',
+    )
+
+    for prop in props:
+        yield prop, '-1', -1
+        yield prop, '1', 1
+        yield prop, '2.0', 2.0
+
+
 def fixture_init_starts_transport_process():
     yield None
     yield True
@@ -112,9 +139,12 @@ def fixture_init_starts_transport_process():
 
 
 class TestRealTransportFactory:
-    @pytest.mark.skip
-    def test_constructor(self):
-        pass
+    @pytest.mark.parametrize('prop, arg_value, expected_value',
+        fixture_constructor_cast_properties())
+    def test_constructor_cast_properties(self, prop, arg_value, expected_value):
+        factory = RealTransportFactory(**{prop: arg_value})
+
+        assert getattr(factory, prop) == expected_value
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize('loop_debug', fixture_init_starts_transport_process())
