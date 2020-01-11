@@ -11,6 +11,19 @@ from galts_trade_api.transport.real import InitExchangeEntitiesRequest, RabbitCo
 from ..utils import AsyncMock, cancel_other_tasks
 
 
+@pytest.fixture
+async def unexpected_exceptions_handler():
+    def on_exception(_: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+        pytest.fail(f"Unexpected exception: {context['message']}")
+
+    loop = asyncio.get_running_loop()
+
+    old_handler = loop.get_exception_handler()
+    loop.set_exception_handler(on_exception)
+    yield
+    loop.set_exception_handler(old_handler)
+
+
 class TestRabbitConnection:
     def test_constructor_is_singleton(self):
         conn_a = RabbitConnection('test1.local')
@@ -139,6 +152,7 @@ def fixture_init_starts_transport_process():
     yield False
 
 
+@pytest.mark.usefixtures('unexpected_exceptions_handler')
 class TestRealTransportFactory:
     @pytest.mark.parametrize('prop, arg_value, expected_value',
         fixture_constructor_cast_properties())
@@ -260,7 +274,14 @@ class TestRealTransportFactory:
             autospec=True
         )
 
-        async def start(): raise RuntimeError('Halt router')
+        expected_exception = RuntimeError('Halt router')
+
+        def on_exception(_: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+            assert context['exception'] is expected_exception
+
+        asyncio.get_running_loop().set_exception_handler(on_exception)
+
+        async def start(): raise expected_exception
 
         router_cls.return_value.start.return_value = start()
 
