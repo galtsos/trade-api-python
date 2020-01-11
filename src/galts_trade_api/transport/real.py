@@ -96,11 +96,11 @@ class RabbitConsumer:
 class RealTransportFactory(TransportFactory):
     def __init__(
         self,
-        exchange_info_dsn: Optional[str] = None,
+        exchange_info_dsn: str,
+        depth_scraping_queue_dsn: str,
+        depth_scraping_queue_exchange: str,
         exchange_info_get_entities_timeout: float = 5.0,
-        depth_scraping_queue_dsn: Optional[str] = None,
-        depth_scraping_queue_exchange: Optional[str] = None,
-        process_ready_timeout: float = 2,
+        process_ready_timeout: float = 2.0,
     ):
         super().__init__()
         self._process: Optional[Process] = None
@@ -108,9 +108,8 @@ class RealTransportFactory(TransportFactory):
         self._parent_connection, self._child_connection = Pipe()
         self._response_router: Optional[PipeResponseRouter] = None
 
-        def sanity_string(value: Optional[str]) -> Optional[str]:
-            if value is not None:
-                return str(value).strip()
+        def sanity_string(value: str) -> str:
+            return str(value).strip()
 
         self._exchange_info_dsn = sanity_string(exchange_info_dsn)
         self._exchange_info_get_entities_timeout = float(exchange_info_get_entities_timeout)

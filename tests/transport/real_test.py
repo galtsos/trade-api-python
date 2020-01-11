@@ -114,7 +114,6 @@ def fixture_constructor_cast_properties():
     )
 
     for prop in props:
-        yield prop, None, None
         yield prop, 1, '1'
         yield prop, 2.0, '2.0'
         yield prop, False, 'False'
@@ -142,7 +141,7 @@ class TestRealTransportFactory:
     @pytest.mark.parametrize('prop, arg_value, expected_value',
         fixture_constructor_cast_properties())
     def test_constructor_cast_properties(self, prop, arg_value, expected_value):
-        factory = RealTransportFactory(**{prop: arg_value})
+        factory = self._get_factory_instance(**{prop: arg_value})
 
         assert getattr(factory, prop) == expected_value
 
@@ -155,7 +154,7 @@ class TestRealTransportFactory:
         )
         process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
 
-        factory = RealTransportFactory()
+        factory = self._get_factory_instance()
         await factory.init(loop_debug=loop_debug)
 
         process_cls.assert_called_once_with(
@@ -175,7 +174,7 @@ class TestRealTransportFactory:
         )
         process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
 
-        factory = RealTransportFactory()
+        factory = self._get_factory_instance()
 
         with pytest.raises(RuntimeError, match='should be created only once'):
             await factory.init()
@@ -187,7 +186,7 @@ class TestRealTransportFactory:
     async def test_init_exception_for_long_transport_process_init(self, mocker):
         mocker.patch('galts_trade_api.transport.real.RealTransportProcess', autospec=True)
 
-        factory = RealTransportFactory(process_ready_timeout=0.1)
+        factory = self._get_factory_instance(process_ready_timeout=0.1)
 
         with pytest.raises(RuntimeError, match='Failed to initialize'):
             await factory.init()
@@ -205,7 +204,7 @@ class TestRealTransportFactory:
         )
         create_task = mocker.patch('asyncio.create_task', autospec=True)
 
-        factory = RealTransportFactory(process_ready_timeout=0.1)
+        factory = self._get_factory_instance(process_ready_timeout=0.1)
         await factory.init()
 
         cancel_other_tasks()
@@ -236,7 +235,7 @@ class TestRealTransportFactory:
 
         router_cls.return_value.start.return_value = start()
 
-        factory = RealTransportFactory(process_ready_timeout=0.1)
+        factory = self._get_factory_instance(process_ready_timeout=0.1)
         await factory.init()
 
         cancel_other_tasks()
@@ -263,13 +262,30 @@ class TestRealTransportFactory:
 
         router_cls.return_value.start.return_value = start()
 
-        factory = RealTransportFactory(process_ready_timeout=0.1)
+        factory = self._get_factory_instance(process_ready_timeout=0.1)
         await factory.init()
 
         # Pass a loop iteration to execute the done callback
         await asyncio.sleep(0.001)
 
         factory_shutdown.assert_called_once()
+
+    @classmethod
+    def _get_factory_instance(
+        cls,
+        exchange_info_dsn: str = 'test.local',
+        depth_scraping_queue_dsn: str = 'test.local',
+        depth_scraping_queue_exchange: str = 'test-exchange',
+        exchange_info_get_entities_timeout: float = 5.0,
+        process_ready_timeout: float = 2.0,
+    ):
+        return RealTransportFactory(
+            exchange_info_dsn=exchange_info_dsn,
+            depth_scraping_queue_dsn=depth_scraping_queue_dsn,
+            depth_scraping_queue_exchange=depth_scraping_queue_exchange,
+            exchange_info_get_entities_timeout=exchange_info_get_entities_timeout,
+            process_ready_timeout=process_ready_timeout,
+        )
 
     @classmethod
     def _factory_process_constructor_which_set_event(
