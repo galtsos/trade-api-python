@@ -93,14 +93,14 @@ class TransportFactory(ABC):
         pass
 
     @abstractmethod
-    async def init_exchange_entities(
+    async def get_exchange_entities(
         self,
         on_response: Callable[..., Awaitable]
     ) -> MessageConsumerCollection:
         pass
 
     @abstractmethod
-    async def get_depth_scraping_consumer(
+    async def consume_price_depth(
         self,
         on_response: Callable[..., Awaitable],
         consume_keys: Optional[List[DepthConsumeKey]] = None

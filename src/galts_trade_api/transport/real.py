@@ -20,13 +20,13 @@ AioPikaConsumeCallable = Callable[[aio_pika.IncomingMessage], Any]
 
 
 @dataclass(frozen=True)
-class InitExchangeEntitiesRequest(PipeRequest):
+class GetExchangeEntitiesRequest(PipeRequest):
     dsn: str
     timeout: float
 
 
 @dataclass(frozen=True)
-class ConsumeDepthScrapingRequest(PipeRequest):
+class ConsumePriceDepthRequest(PipeRequest):
     dsn: str
     exchange: str
     consume_keys: frozenset
@@ -169,11 +169,11 @@ class RealTransportFactory(TransportFactory):
         if self._process:
             self._process.terminate()
 
-    async def init_exchange_entities(
+    async def get_exchange_entities(
         self,
         on_response: Callable[..., Awaitable]
     ) -> MessageConsumerCollection:
-        request = InitExchangeEntitiesRequest(
+        request = GetExchangeEntitiesRequest(
             self.exchange_info_dsn,
             self.exchange_info_get_entities_timeout
         )
@@ -183,12 +183,12 @@ class RealTransportFactory(TransportFactory):
 
         return result
 
-    async def get_depth_scraping_consumer(
+    async def consume_price_depth(
         self,
         on_response: Callable[..., Awaitable],
         consume_keys: Optional[List[DepthConsumeKey]] = None
     ) -> MessageConsumerCollection:
-        request = ConsumeDepthScrapingRequest(
+        request = ConsumePriceDepthRequest(
             self.depth_scraping_queue_dsn,
             self.depth_scraping_queue_exchange,
             frozenset(consume_keys)
@@ -216,8 +216,8 @@ class RealTransportProcess(Process):
         self._connection = connection
         self._poll_delay = float(poll_delay)
         self._handlers: Mapping[Type[PipeRequest], Callable[..., Awaitable]] = {
-            InitExchangeEntitiesRequest: self.init_exchange_entities,
-            ConsumeDepthScrapingRequest: self.consume_depth_scraping,
+            GetExchangeEntitiesRequest: self.get_exchange_entities,
+            ConsumePriceDepthRequest: self.consume_price_depth,
         }
 
     @property
@@ -246,17 +246,17 @@ class RealTransportProcess(Process):
             handler = self._find_handler_for_request(request)
             asyncio.create_task(handler(request))
 
-    async def init_exchange_entities(self, request: InitExchangeEntitiesRequest) -> None:
+    async def get_exchange_entities(self, request: GetExchangeEntitiesRequest) -> None:
         client = ExchangeInfoClient.factory(request.dsn, timeout_get_entities=request.timeout)
         entities = client.get_entities(generate_request_id())
         self._respond_to_owner_request(request, entities)
 
         client.destroy()
 
-    async def consume_depth_scraping(self, request: ConsumeDepthScrapingRequest) -> None:
+    async def consume_price_depth(self, request: ConsumePriceDepthRequest) -> None:
         connection = RabbitConnection(request.dsn)
         channel = await connection.create_channel(100)
-        cb = partial(self._depth_scraping_callback, request)
+        cb = partial(self._price_depth_callback, request)
         consumer = RabbitConsumer(channel, request.exchange, cb)
         queue = await consumer.create_queue()
 
@@ -287,9 +287,9 @@ class RealTransportProcess(Process):
     def _respond_to_owner_request(self, request: PipeRequest, content: Any):
         self._connection.send([request, content])
 
-    def _depth_scraping_callback(
+    def _price_depth_callback(
         self,
-        request: ConsumeDepthScrapingRequest,
+        request: ConsumePriceDepthRequest,
         message: aio_pika.IncomingMessage
     ) -> None:
         body = json.loads(message.body)

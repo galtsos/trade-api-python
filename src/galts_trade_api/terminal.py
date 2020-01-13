@@ -37,9 +37,9 @@ class Terminal:
     async def wait_exchange_entities_inited(self, timeout: float = 5.0) -> None:
         await wait_for(self._exchange_entities_inited.wait(), timeout)
 
-    async def init_exchange_entities(self) -> None:
-        await self.transport_factory.init_exchange_entities(
-            self._on_init_exchange_entities_response
+    async def get_exchange_entities(self) -> None:
+        await self.transport_factory.get_exchange_entities(
+            self._on_get_exchange_entities_response
         )
 
     async def auth_user(self, username: str, password: str) -> bool:
@@ -53,12 +53,12 @@ class Terminal:
         callback: OnPriceCallable,
         consume_keys: Optional[List[DepthConsumeKey]] = None
     ) -> None:
-        await self.transport_factory.get_depth_scraping_consumer(
+        await self.transport_factory.consume_price_depth(
             lambda event: callback(*event),
             consume_keys
         )
 
-    async def _on_init_exchange_entities_response(
+    async def _on_get_exchange_entities_response(
         self,
         data: MutableMapping[str, MutableMapping]
     ) -> None:
@@ -67,7 +67,7 @@ class Terminal:
         for prop in properties_to_fill:
             if prop not in data:
                 # @TODO Stop the process on this exception
-                raise KeyError(f'init_exchange_entities data have not required key "{prop}"')
+                raise KeyError(f'get_exchange_entities data have not required key "{prop}"')
 
             data[prop] = {k: v for k, v in data[prop].items() if not v['delete_time']}
 

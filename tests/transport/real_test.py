@@ -6,8 +6,8 @@ from unittest.mock import ANY, Mock
 import aio_pika
 import pytest
 
-from galts_trade_api.transport.real import ConsumeDepthScrapingRequest, \
-    InitExchangeEntitiesRequest, RabbitConnection, RabbitConsumer, RealTransportFactory
+from galts_trade_api.transport.real import ConsumePriceDepthRequest, \
+    GetExchangeEntitiesRequest, RabbitConnection, RabbitConsumer, RealTransportFactory
 from ..utils import AsyncMock, cancel_other_tasks
 
 
@@ -159,12 +159,12 @@ def fixture_test_remote_methods_setup_callback():
         'exchange_info_dsn': exchange_info_dsn,
         'exchange_info_get_entities_timeout': exchange_info_get_entities_timeout,
     }
-    response1 = InitExchangeEntitiesRequest(
+    response1 = GetExchangeEntitiesRequest(
         exchange_info_dsn,
         exchange_info_get_entities_timeout
     )
 
-    yield constructor_args1, 'init_exchange_entities', {}, response1
+    yield constructor_args1, 'get_exchange_entities', {}, response1
 
     depth_scraping_queue_dsn = 'test.local'
     depth_scraping_queue_exchange = 'test-exchange'
@@ -175,13 +175,13 @@ def fixture_test_remote_methods_setup_callback():
     method_args2 = {
         'consume_keys': [],
     }
-    response2 = ConsumeDepthScrapingRequest(
+    response2 = ConsumePriceDepthRequest(
         depth_scraping_queue_dsn,
         depth_scraping_queue_exchange,
         frozenset()
     )
 
-    yield constructor_args2, 'get_depth_scraping_consumer', method_args2, response2
+    yield constructor_args2, 'consume_price_depth', method_args2, response2
 
 
 @pytest.mark.usefixtures('unexpected_exceptions_handler')
