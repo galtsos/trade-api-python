@@ -220,6 +220,10 @@ class RealTransportProcess(Process):
             ConsumeDepthScrapingRequest: self.consume_depth_scraping,
         }
 
+    @property
+    def poll_delay(self):
+        return self._poll_delay
+
     def run(self) -> None:
         run_program_forever(self.main, loop_debug=self._loop_debug)
 
@@ -234,7 +238,7 @@ class RealTransportProcess(Process):
 
         while True:
             if not self._connection.poll():
-                await asyncio.sleep(self._poll_delay)
+                await asyncio.sleep(self.poll_delay)
                 continue
 
             request = self._connection.recv()
