@@ -1,4 +1,5 @@
 import asyncio
+from multiprocessing import Event
 from multiprocessing.connection import Connection
 from typing import Any, Callable, Dict
 from unittest.mock import ANY, Mock
@@ -7,7 +8,8 @@ import aio_pika
 import pytest
 
 from galts_trade_api.transport.real import ConsumePriceDepthRequest, \
-    GetExchangeEntitiesRequest, RabbitConnection, RabbitConsumer, RealTransportFactory
+    GetExchangeEntitiesRequest, RabbitConnection, RabbitConsumer, RealTransportFactory, \
+    RealTransportProcess
 from ..utils import AsyncMock, cancel_other_tasks
 
 
@@ -120,7 +122,7 @@ class TestRabbitConsumer:
         assert channel.declare_queue.return_value is consumer.queue
 
 
-def fixture_constructor_cast_properties():
+def fixture_factory_constructor_cast_properties():
     # String properties
     props = (
         'exchange_info_dsn',
@@ -186,8 +188,10 @@ def fixture_test_remote_methods_setup_callback():
 
 @pytest.mark.usefixtures('unexpected_exceptions_handler')
 class TestRealTransportFactory:
-    @pytest.mark.parametrize('prop, arg_value, expected_value',
-        fixture_constructor_cast_properties())
+    @pytest.mark.parametrize(
+        'prop, arg_value, expected_value',
+        fixture_factory_constructor_cast_properties()
+    )
     def test_constructor_cast_properties(self, prop, arg_value, expected_value):
         factory = self._get_factory_instance(**{prop: arg_value})
 
@@ -408,3 +412,49 @@ class TestRealTransportFactory:
             return instance
 
         return process_constructor
+
+
+def fixture_process_constructor_cast_properties():
+    # Float properties
+    props = (
+        'poll_delay',
+    )
+
+    for prop in props:
+        yield prop, '-1', -1
+        yield prop, '1', 1
+        yield prop, '2.0', 2.0
+
+
+def fixture_run_calls_async_helper():
+    yield None
+    yield True
+    yield False
+
+
+class TestRealTransportProcess:
+    @pytest.mark.parametrize(
+        'prop, arg_value, expected_value',
+        fixture_process_constructor_cast_properties()
+    )
+    def test_constructor_cast_properties(self, prop, arg_value, expected_value):
+        process = RealTransportProcess(
+            ready_event=Event(),
+            connection=Mock(spec_set=Connection),
+            poll_delay=arg_value,
+        )
+
+        assert getattr(process, prop) == expected_value
+
+    @pytest.mark.parametrize('loop_debug', fixture_run_calls_async_helper())
+    def test_run_calls_async_helper(self, mocker, loop_debug):
+        helper_mock = mocker.patch('galts_trade_api.transport.real.run_program_forever')
+
+        process = RealTransportProcess(
+            loop_debug=loop_debug,
+            ready_event=Event(),
+            connection=Mock(spec_set=Connection)
+        )
+        process.run()
+
+        helper_mock.assert_called_once_with(process.main, loop_debug=loop_debug)
