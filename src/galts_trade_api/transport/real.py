@@ -268,9 +268,12 @@ class RealTransportProcess(Process):
         for routing_key in routing_keys:
             await queue.bind(consumer.exchange, routing_key)
 
+    def _respond_to_owner_request(self, request: PipeRequest, content: Any) -> None:
+        self._connection.send([request, content])
+
     def _notify_owner_process(self, original_exception: Exception) -> None:
         # This wrapping is required to don't fire unnecessary errors about serialization
-        # of the exception. Otherwise a framework user will see unrequired spam about
+        # of the exception. Otherwise a framework user will see undesired spam about
         # pickling RLock etc in logs.
         wrapped_exception = TransportFactoryException('An error in the transport process')
         wrapped_exception.__cause__ = original_exception
@@ -283,9 +286,6 @@ class RealTransportProcess(Process):
             raise ValueError(f'No handler for request type {request_type}')
 
         return self._handlers[request_type]
-
-    def _respond_to_owner_request(self, request: PipeRequest, content: Any):
-        self._connection.send([request, content])
 
     def _price_depth_callback(
         self,
