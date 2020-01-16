@@ -8,7 +8,7 @@ import aio_pika
 import pytest
 
 from galts_trade_api.asyncio_helper import AsyncProgramEnv
-from galts_trade_api.transport import PipeRequest, TransportFactoryException
+from galts_trade_api.transport import DepthConsumeKey, PipeRequest, TransportFactoryException
 from galts_trade_api.transport.real import ConsumePriceDepthRequest, \
     GetExchangeEntitiesRequest, RabbitConnection, RabbitConsumer, RealTransportFactory, \
     RealTransportProcess
@@ -489,6 +489,7 @@ class TestRealTransportProcess:
         process = RealTransportProcess(ready_event=Event(), connection=Mock(spec_set=Connection))
 
         async def handler(_): pass
+
         process.add_handler(TestRequest, handler)
 
         with pytest.raises(ValueError, match='already registered'):
@@ -508,7 +509,6 @@ class TestRealTransportProcess:
         assert event.is_set()
 
         process_task.cancel()
-        cancel_other_tasks()
 
     @pytest.mark.asyncio
     async def test_main_set_exception_handler(self, mocker):
@@ -558,6 +558,81 @@ class TestRealTransportProcess:
 
         with pytest.raises(ValueError, match='No handler'):
             process_task.result()
+
+    @pytest.mark.asyncio
+    async def test_get_exchange_entities_calls_exchange_info(self, mocker):
+        expected_response = {'asset': []}
+        client_mock = mocker.patch(
+            'galts_trade_api.transport.real.ExchangeInfoClient',
+            autospec=True
+        )
+        client_instance_mock = client_mock.factory.return_value
+        client_instance_mock.get_entities.return_value = expected_response
+        env_mock = Mock(spec_set=AsyncProgramEnv)
+        parent_connection, child_connection = Pipe()
+        process = RealTransportProcess(ready_event=Event(), connection=child_connection)
+
+        process_task = asyncio.create_task(process.main(env_mock))
+
+        dsn = 'test.local'
+        timeout = 1.0
+        request = GetExchangeEntitiesRequest(dsn, timeout)
+        parent_connection.send(request)
+        await asyncio.sleep(0.001)
+
+        client_mock.factory.assert_called_once_with(dsn, timeout_get_entities=timeout)
+        client_instance_mock.get_entities.assert_called_once()
+        client_instance_mock.destroy.assert_called_once()
+
+        assert parent_connection.poll(0.001)
+        response = parent_connection.recv()
+        assert len(response) == 2
+        assert response[0] == request
+        assert response[1] == expected_response
+
+        assert not process_task.cancelled()
+        process_task.cancel()
+
+    @pytest.mark.asyncio
+    async def test_consume_price_depth(self, mocker):
+        connection_mock = mocker.patch(
+            'galts_trade_api.transport.real.RabbitConnection',
+            autospec=True
+        )
+        connection_instance_mock = connection_mock.return_value
+        connection_instance_mock.create_channel = AsyncMock()
+        channel_mock = connection_instance_mock.create_channel.return_value
+
+        consumer_mock = mocker.patch('galts_trade_api.transport.real.RabbitConsumer', autospec=True)
+        consumer_instance_mock = consumer_mock.return_value
+        consumer_instance_mock.create_queue = AsyncMock()
+        queue_mock = consumer_instance_mock.create_queue.return_value
+
+        env_mock = Mock(spec_set=AsyncProgramEnv)
+        parent_connection, child_connection = Pipe()
+        process = RealTransportProcess(ready_event=Event(), connection=child_connection)
+
+        process_task = asyncio.create_task(process.main(env_mock))
+
+        dsn = 'test.local'
+        exchange = 'test-exchange'
+        keys = frozenset([DepthConsumeKey('test1'), DepthConsumeKey('test2')])
+        request = ConsumePriceDepthRequest(dsn, exchange, keys)
+        parent_connection.send(request)
+        await asyncio.sleep(0.001)
+
+        connection_mock.assert_called_once_with(dsn)
+        connection_instance_mock.create_channel.assert_called_once_with(100)
+        consumer_mock.assert_called_once_with(channel_mock, exchange, ANY)
+        consumer_instance_mock.create_queue.assert_called_once()
+        queue_mock.bind.assert_any_call(consumer_instance_mock.exchange, 'test1.*.*')
+        queue_mock.bind.assert_any_call(consumer_instance_mock.exchange, 'test2.*.*')
+
+        # This type of request don't answered synchronously
+        assert not parent_connection.poll(0.001)
+
+        assert not process_task.cancelled()
+        process_task.cancel()
 
 
 class TestRequest(PipeRequest):

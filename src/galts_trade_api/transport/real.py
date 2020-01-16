@@ -256,7 +256,6 @@ class RealTransportProcess(Process):
             handler = self._find_handler_for_request(request)
             asyncio.create_task(handler(request))
 
-    # @TODO Cover
     async def _get_exchange_entities(self, request: GetExchangeEntitiesRequest) -> None:
         client = ExchangeInfoClient.factory(request.dsn, timeout_get_entities=request.timeout)
         entities = client.get_entities(generate_request_id())
@@ -264,7 +263,6 @@ class RealTransportProcess(Process):
 
         client.destroy()
 
-    # @TODO Cover
     async def _consume_price_depth(self, request: ConsumePriceDepthRequest) -> None:
         connection = RabbitConnection(request.dsn)
         channel = await connection.create_channel(100)
