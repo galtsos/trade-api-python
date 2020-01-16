@@ -35,7 +35,11 @@ class MessageConsumerCollection:
     async def send(self, data: Any) -> None:
         coroutines = [consumer(data) for consumer in self._consumers]
 
-        await asyncio.gather(*coroutines)
+        tasks_result = await asyncio.gather(*coroutines, return_exceptions=True)
+
+        for result in tasks_result:
+            if isinstance(result, BaseException):
+                raise result
 
 
 class PipeRequest:
