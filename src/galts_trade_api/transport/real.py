@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import partial
 from multiprocessing import Event, Pipe, Process
 from multiprocessing.connection import Connection
-from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Type
+from typing import Any, Awaitable, Callable, Dict, List, MutableMapping, Optional, Type
 
 import aio_pika
 
@@ -215,14 +215,24 @@ class RealTransportProcess(Process):
         self._ready_event = ready_event
         self._connection = connection
         self._poll_delay = float(poll_delay)
-        self._handlers: Mapping[Type[PipeRequest], Callable[..., Awaitable]] = {
-            GetExchangeEntitiesRequest: self.get_exchange_entities,
-            ConsumePriceDepthRequest: self.consume_price_depth,
-        }
+        self._handlers: MutableMapping[Type[PipeRequest], Callable[..., Awaitable]] = {}
+
+        self.add_handler(GetExchangeEntitiesRequest, self._get_exchange_entities)
+        self.add_handler(ConsumePriceDepthRequest, self._consume_price_depth)
 
     @property
     def poll_delay(self):
         return self._poll_delay
+
+    def add_handler(
+        self,
+        request_type: Type[PipeRequest],
+        handler: Callable[..., Awaitable]
+    ) -> None:
+        if request_type in self._handlers:
+            raise ValueError(f'Handler for {request_type} already registered')
+
+        self._handlers[request_type] = handler
 
     def run(self) -> None:
         run_program_forever(self.main, loop_debug=self._loop_debug)
@@ -246,14 +256,16 @@ class RealTransportProcess(Process):
             handler = self._find_handler_for_request(request)
             asyncio.create_task(handler(request))
 
-    async def get_exchange_entities(self, request: GetExchangeEntitiesRequest) -> None:
+    # @TODO Cover
+    async def _get_exchange_entities(self, request: GetExchangeEntitiesRequest) -> None:
         client = ExchangeInfoClient.factory(request.dsn, timeout_get_entities=request.timeout)
         entities = client.get_entities(generate_request_id())
         self._respond_to_owner_request(request, entities)
 
         client.destroy()
 
-    async def consume_price_depth(self, request: ConsumePriceDepthRequest) -> None:
+    # @TODO Cover
+    async def _consume_price_depth(self, request: ConsumePriceDepthRequest) -> None:
         connection = RabbitConnection(request.dsn)
         channel = await connection.create_channel(100)
         cb = partial(self._price_depth_callback, request)
