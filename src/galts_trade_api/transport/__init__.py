@@ -82,6 +82,8 @@ class PipeResponseRouter:
         if request not in self._consumers:
             return
 
+        # Don't store the sub-tasks because we don't want to cancel them if self.start() has been
+        # cancelled.
         asyncio.create_task(self._consumers[request].send(response))
 
 

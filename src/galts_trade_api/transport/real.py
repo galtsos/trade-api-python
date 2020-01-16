@@ -254,6 +254,9 @@ class RealTransportProcess(Process):
             request = self._connection.recv()
 
             handler = self._find_handler_for_request(request)
+            # @TODO The tasks should be collected for cancellation when this main task has been
+            # cancelled. But when I've tried to done this I've got Segmentation fault from
+            # unit-tests. May be it depends on Python version.
             asyncio.create_task(handler(request))
 
     async def _get_exchange_entities(self, request: GetExchangeEntitiesRequest) -> None:
