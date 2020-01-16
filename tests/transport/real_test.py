@@ -1,5 +1,5 @@
 import asyncio
-from multiprocessing import Event
+from multiprocessing import Event, Pipe
 from multiprocessing.connection import Connection
 from typing import Any, Callable, Dict
 from unittest.mock import ANY, Mock
@@ -7,6 +7,8 @@ from unittest.mock import ANY, Mock
 import aio_pika
 import pytest
 
+from galts_trade_api.asyncio_helper import AsyncProgramEnv
+from galts_trade_api.transport import PipeRequest, TransportFactoryException
 from galts_trade_api.transport.real import ConsumePriceDepthRequest, \
     GetExchangeEntitiesRequest, RabbitConnection, RabbitConsumer, RealTransportFactory, \
     RealTransportProcess
@@ -458,3 +460,54 @@ class TestRealTransportProcess:
         process.run()
 
         helper_mock.assert_called_once_with(process.main, loop_debug=loop_debug)
+
+    @pytest.mark.asyncio
+    async def test_main_set_event(self):
+        event = Event()
+        connection_mock = Mock(spec_set=Connection, **{'poll.return_value': False})
+        process = RealTransportProcess(ready_event=event, connection=connection_mock)
+        env_mock = Mock(spec_set=AsyncProgramEnv)
+
+        process_task = asyncio.create_task(process.main(env_mock))
+        await asyncio.sleep(0.001)
+
+        assert not process_task.cancelled()
+        assert event.is_set()
+
+        process_task.cancel()
+        cancel_other_tasks()
+
+    @pytest.mark.asyncio
+    async def test_main_set_exception_handler(self, mocker):
+        shutdown_mock = mocker.patch('galts_trade_api.asyncio_helper.shutdown')
+        env = AsyncProgramEnv()
+        loop = asyncio.get_running_loop()
+        loop.set_exception_handler(env.exception_handler)
+        parent_connection, child_connection = Pipe()
+        process = RealTransportProcess(ready_event=Event(), connection=child_connection)
+        handler_was_called = Event()
+
+        async def handler(_):
+            handler_was_called.set()
+            raise RuntimeError('Test exception from a handler')
+
+        process.add_handler(TestRequest, handler)
+
+        process_task = asyncio.create_task(process.main(env))
+        parent_connection.send(TestRequest())
+        await asyncio.sleep(0.001)
+
+        assert handler_was_called.is_set()
+
+        assert parent_connection.poll(0.001)
+        response = parent_connection.recv()
+        assert len(response) == 1
+        assert isinstance(response[0], TransportFactoryException)
+
+        shutdown_mock.assert_called_once()
+        assert not process_task.cancelled()
+        process_task.cancel()
+
+
+class TestRequest(PipeRequest):
+    pass

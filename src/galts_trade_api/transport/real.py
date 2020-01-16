@@ -288,8 +288,10 @@ class RealTransportProcess(Process):
         # of the exception. Otherwise a framework user will see undesired spam about
         # pickling RLock etc in logs.
         wrapped_exception = TransportFactoryException('An error in the transport process')
+        # Unfortunately this line has no side-effects in Python 3.7 because this attribute
+        # won't be packed by Connection.send() therefore cross-Connection.recv() will unpack
+        # the data without the value for this attribute. So we don't have real wrapping here.
         wrapped_exception.__cause__ = original_exception
-
         self._connection.send([wrapped_exception])
 
     def _find_handler_for_request(self, request: PipeRequest) -> Callable[..., Awaitable]:
