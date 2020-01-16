@@ -462,6 +462,39 @@ class TestRealTransportProcess:
         helper_mock.assert_called_once_with(process.main, loop_debug=loop_debug)
 
     @pytest.mark.asyncio
+    async def test_add_handler_add_ability_to_call_handler(self):
+        env_mock = Mock(spec_set=AsyncProgramEnv)
+        parent_connection, child_connection = Pipe()
+        process = RealTransportProcess(ready_event=Event(), connection=child_connection)
+        handler_was_called = Event()
+        request_type = TestRequest
+
+        async def handler(r: PipeRequest):
+            handler_was_called.set()
+            assert isinstance(r, request_type)
+
+        process.add_handler(TestRequest, handler)
+
+        process_task = asyncio.create_task(process.main(env_mock))
+        parent_connection.send(request_type())
+        await asyncio.sleep(0.001)
+
+        assert handler_was_called.is_set()
+
+        assert not process_task.cancelled()
+        process_task.cancel()
+
+    @pytest.mark.asyncio
+    async def test_add_handler_cannot_override_handler(self):
+        process = RealTransportProcess(ready_event=Event(), connection=Mock(spec_set=Connection))
+
+        async def handler(r: PipeRequest): pass
+        process.add_handler(TestRequest, handler)
+
+        with pytest.raises(ValueError, match='already registered'):
+            process.add_handler(TestRequest, handler)
+
+    @pytest.mark.asyncio
     async def test_main_set_event(self):
         event = Event()
         connection_mock = Mock(spec_set=Connection, **{'poll.return_value': False})
@@ -493,10 +526,13 @@ class TestRealTransportProcess:
 
         process.add_handler(TestRequest, handler)
 
+        assert not env.exception_handler_patch
+
         process_task = asyncio.create_task(process.main(env))
         parent_connection.send(TestRequest())
         await asyncio.sleep(0.001)
 
+        assert env.exception_handler_patch
         assert handler_was_called.is_set()
 
         assert parent_connection.poll(0.001)
