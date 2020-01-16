@@ -51,7 +51,7 @@ def thread_with_timeout(target: Callable, timeout: float = 1) -> Generator:
             target()
         except Exception as e:
             exception = e
-            raise
+            sys.exit(1)
         finally:
             is_finished_event.set()
 

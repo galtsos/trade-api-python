@@ -214,5 +214,3 @@ def get_method_descriptor(method_name: str) -> MethodDescriptor:
         .methods_by_name[method_name]
 
     return method_descriptor
-
-# @TODO Catch and fix flanky test fail because of an exception in a thread
