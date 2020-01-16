@@ -488,7 +488,7 @@ class TestRealTransportProcess:
     async def test_add_handler_cannot_override_handler(self):
         process = RealTransportProcess(ready_event=Event(), connection=Mock(spec_set=Connection))
 
-        async def handler(r: PipeRequest): pass
+        async def handler(_): pass
         process.add_handler(TestRequest, handler)
 
         with pytest.raises(ValueError, match='already registered'):
@@ -543,6 +543,21 @@ class TestRealTransportProcess:
         shutdown_mock.assert_called_once()
         assert not process_task.cancelled()
         process_task.cancel()
+
+    @pytest.mark.asyncio
+    async def test_main_exception_for_unknown_handler(self, mocker):
+        env_mock = Mock(spec_set=AsyncProgramEnv)
+        parent_connection, child_connection = Pipe()
+        process = RealTransportProcess(ready_event=Event(), connection=child_connection)
+
+        process_task = asyncio.create_task(process.main(env_mock))
+        parent_connection.send(TestRequest())
+        await asyncio.sleep(0.001)
+
+        assert not process_task.cancelled()
+
+        with pytest.raises(ValueError, match='No handler'):
+            process_task.result()
 
 
 class TestRequest(PipeRequest):
