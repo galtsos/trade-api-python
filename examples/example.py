@@ -27,7 +27,7 @@ async def start_trade_system(program_env: AsyncProgramEnv) -> None:
     if not await terminal.auth_user(username, password):
         raise RuntimeError(f'Cannot auth {username}')
 
-    await terminal.get_exchange_entities()
+    await terminal.init_exchange_entities()
     await terminal.wait_exchange_entities_inited()
 
     await terminal.subscribe_to_prices(

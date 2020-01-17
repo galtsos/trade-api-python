@@ -1,6 +1,6 @@
 import datetime
 from asyncio import Event, wait_for
-from typing import Awaitable, Callable, Dict, List, MutableMapping, Optional
+from typing import Awaitable, Callable, Dict, List, Mapping, MutableMapping, Optional
 
 from .asset import Asset, Symbol
 from .exchange import Exchange, Market
@@ -37,9 +37,9 @@ class Terminal:
     async def wait_exchange_entities_inited(self, timeout: float = 5.0) -> None:
         await wait_for(self._exchange_entities_inited.wait(), timeout)
 
-    async def get_exchange_entities(self) -> None:
+    async def init_exchange_entities(self) -> None:
         await self.transport_factory.get_exchange_entities(
-            self._on_get_exchange_entities_response
+            self._on_init_exchange_entities_response
         )
 
     async def auth_user(self, username: str, password: str) -> bool:
@@ -58,10 +58,7 @@ class Terminal:
             consume_keys
         )
 
-    async def _on_get_exchange_entities_response(
-        self,
-        data: MutableMapping[str, MutableMapping]
-    ) -> None:
+    async def _on_init_exchange_entities_response(self, data: MutableMapping[str, Mapping]) -> None:
         properties_to_fill = ('exchanges', 'markets', 'symbols', 'assets')
 
         for prop in properties_to_fill:
