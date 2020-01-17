@@ -19,6 +19,30 @@ class Asset:
         self._create_time: datetime.datetime = create_time
         self._delete_time: Optional[datetime.datetime] = delete_time
 
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def tag(self):
+        return self._tag
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def precision(self):
+        return self._precision
+
+    @property
+    def create_time(self):
+        return self._create_time
+
+    @property
+    def delete_time(self):
+        return self._delete_time
+
 
 class Symbol:
     def __init__(
@@ -34,3 +58,23 @@ class Symbol:
         self._quote_asset_id: int = int(quote_asset_id)
         self._create_time: datetime.datetime = create_time
         self._delete_time: Optional[datetime.datetime] = delete_time
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def base_asset_id(self):
+        return self._base_asset_id
+
+    @property
+    def quote_asset_id(self):
+        return self._quote_asset_id
+
+    @property
+    def create_time(self):
+        return self._create_time
+
+    @property
+    def delete_time(self):
+        return self._delete_time

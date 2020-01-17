@@ -24,8 +24,28 @@ class Exchange:
         self._markets: Dict[str, Market] = {}
 
     @property
+    def id(self):
+        return self._id
+
+    @property
     def tag(self):
         return self._tag
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def create_time(self):
+        return self._create_time
+
+    @property
+    def delete_time(self):
+        return self._delete_time
+
+    @property
+    def disable_time(self):
+        return self._disable_time
 
     def add_market(self, market: Market) -> None:
         if market.custom_tag in self._markets:
@@ -59,5 +79,29 @@ class Market:
         self._delete_time: Optional[datetime.datetime] = delete_time
 
     @property
+    def id(self):
+        return self._id
+
+    @property
     def custom_tag(self):
         return self._custom_tag
+
+    @property
+    def exchange_id(self):
+        return self._exchange_id
+
+    @property
+    def symbol_id(self):
+        return self._symbol_id
+
+    @property
+    def trade_endpoint(self):
+        return self._trade_endpoint
+
+    @property
+    def create_time(self):
+        return self._create_time
+
+    @property
+    def delete_time(self):
+        return self._delete_time
