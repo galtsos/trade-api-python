@@ -3,13 +3,10 @@ from __future__ import annotations
 import datetime
 from typing import Dict, Optional
 
-from .transport import TransportFactory
-
 
 class Exchange:
     def __init__(
         self,
-        transport_factory: TransportFactory,
         id: int,
         tag: str,
         name: str,
@@ -17,7 +14,6 @@ class Exchange:
         delete_time: Optional[datetime.datetime],
         disable_time: Optional[datetime.datetime]
     ):
-        self._transport_factory = transport_factory
         self._id: int = int(id)
         self._tag: str = str(tag).strip()
         self._name: str = str(name).strip()
@@ -26,14 +22,6 @@ class Exchange:
         self._disable_time: Optional[datetime.datetime] = disable_time
 
         self._markets: Dict[str, Market] = {}
-
-    @property
-    def transport_factory(self):
-        return self._transport_factory
-
-    @transport_factory.setter
-    def transport_factory(self, value):
-        self._transport_factory = value
 
     @property
     def tag(self):
@@ -54,7 +42,6 @@ class Exchange:
 class Market:
     def __init__(
         self,
-        transport_factory: TransportFactory,
         id: int,
         custom_tag: str,
         exchange_id: int,
@@ -63,7 +50,6 @@ class Market:
         create_time: datetime.datetime,
         delete_time: Optional[datetime.datetime]
     ):
-        self._transport_factory = transport_factory
         self._id: int = int(id)
         self._custom_tag: str = str(custom_tag).strip()
         self._exchange_id: int = int(exchange_id)
@@ -71,14 +57,6 @@ class Market:
         self._trade_endpoint: str = str(trade_endpoint).strip()
         self._create_time: datetime.datetime = create_time
         self._delete_time: Optional[datetime.datetime] = delete_time
-
-    @property
-    def transport_factory(self):
-        return self._transport_factory
-
-    @transport_factory.setter
-    def transport_factory(self, value):
-        self._transport_factory = value
 
     @property
     def custom_tag(self):

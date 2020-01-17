@@ -76,13 +76,13 @@ class Terminal:
             if key in self._assets:
                 raise ValueError(f'Asset with tag "{key}" already exists')
 
-            self._assets[key] = Asset(self.transport_factory, **entity)
+            self._assets[key] = Asset(**entity)
 
         for id_, entity in data['symbols'].items():
             if id_ in self._symbols:
                 raise ValueError(f'Symbol with id {id_} already exists')
 
-            self._symbols[id_] = Symbol(self.transport_factory, **entity)
+            self._symbols[id_] = Symbol(**entity)
 
         exchanges_ids_map = {}
         for entity in data['exchanges'].values():
@@ -90,7 +90,7 @@ class Terminal:
             if key in self._exchanges:
                 raise ValueError(f'Exchange with tag "{key}" already exists')
 
-            exchange = Exchange(self.transport_factory, **entity)
+            exchange = Exchange(**entity)
             self._exchanges[key] = exchange
             exchanges_ids_map[entity['id']] = exchange
 
@@ -101,6 +101,6 @@ class Terminal:
                     f'No exchange with id {key} has been found for market with id {entity["id"]}'
                 )
 
-            exchanges_ids_map[key].add_market(Market(self.transport_factory, **entity))
+            exchanges_ids_map[key].add_market(Market(**entity))
 
         self._exchange_entities_inited.set()
