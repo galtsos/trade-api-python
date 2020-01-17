@@ -4,6 +4,7 @@ from typing import Awaitable, Callable, Dict, List, Mapping, MutableMapping, Opt
 
 from .asset import Asset, Symbol
 from .exchange import Exchange, Market
+from .tools import find_duplicates_in_list
 from .transport import DepthConsumeKey, TransportFactory
 
 OnPriceCallable = Callable[[str, str, str, datetime.datetime, List, List], Awaitable]
@@ -31,6 +32,9 @@ class Terminal:
     def shutdown_transport(self) -> None:
         self.transport_factory.shutdown()
 
+    async def auth_user(self, username: str, password: str) -> bool:
+        return True
+
     def is_exchange_entities_inited(self) -> bool:
         return self._exchange_entities_inited.is_set()
 
@@ -42,12 +46,11 @@ class Terminal:
             self._on_init_exchange_entities_response
         )
 
-    async def auth_user(self, username: str, password: str) -> bool:
-        return True
-
+    # @TODO Cover
     def get_exchange(self, tag: str) -> Exchange:
         return self._exchanges[tag]
 
+    # @TODO Cover
     async def subscribe_to_prices(
         self,
         callback: OnPriceCallable,
@@ -63,32 +66,30 @@ class Terminal:
 
         for prop in properties_to_fill:
             if prop not in data:
-                # @TODO Stop the process on this exception
-                raise KeyError(f'get_exchange_entities data have not required key "{prop}"')
+                raise KeyError(f'Key "{prop}" is required')
 
             data[prop] = {k: v for k, v in data[prop].items() if not v['delete_time']}
 
-        for entity in data['assets'].values():
-            key = entity['tag']
-            if key in self._assets:
-                raise ValueError(f'Asset with tag "{key}" already exists')
+        all_assets_tags = [entity['tag'] for entity in data['assets'].values()]
+        duplicates = find_duplicates_in_list(all_assets_tags)
+        if len(duplicates):
+            raise ValueError(f"Assets with duplicates in tags found: {', '.join(duplicates)}")
 
-            self._assets[key] = Asset(**entity)
+        for entity in data['assets'].values():
+            self._assets[entity['tag']] = Asset(**entity)
 
         for id_, entity in data['symbols'].items():
-            if id_ in self._symbols:
-                raise ValueError(f'Symbol with id {id_} already exists')
-
             self._symbols[id_] = Symbol(**entity)
+
+        all_exchanges_tags = [entity['tag'] for entity in data['exchanges'].values()]
+        duplicates = find_duplicates_in_list(all_exchanges_tags)
+        if len(duplicates):
+            raise ValueError(f"Exchanges with duplicates in tags found: {', '.join(duplicates)}")
 
         exchanges_ids_map = {}
         for entity in data['exchanges'].values():
-            key = entity['tag']
-            if key in self._exchanges:
-                raise ValueError(f'Exchange with tag "{key}" already exists')
-
             exchange = Exchange(**entity)
-            self._exchanges[key] = exchange
+            self._exchanges[entity['tag']] = exchange
             exchanges_ids_map[entity['id']] = exchange
 
         for entity in data['markets'].values():
