@@ -200,7 +200,7 @@ class TestTerminal:
         expected_key_name: str
     ):
         factory_fake = FakeTransportFactory()
-        factory_fake.init_exchange_entities_data = data
+        factory_fake.get_exchange_entities_data = data
 
         terminal = Terminal(factory_fake)
         with pytest.raises(KeyError, match=f'Key "{expected_key_name}" is required'):
@@ -217,7 +217,7 @@ class TestTerminal:
         expected_message: str
     ):
         factory_fake = FakeTransportFactory()
-        factory_fake.init_exchange_entities_data = data
+        factory_fake.get_exchange_entities_data = data
 
         terminal = Terminal(factory_fake)
         with pytest.raises(ValueError, match=expected_message):
@@ -241,7 +241,7 @@ class TestTerminal:
         )
 
         factory_fake = FakeTransportFactory()
-        factory_fake.init_exchange_entities_data = data
+        factory_fake.get_exchange_entities_data = data
 
         terminal = Terminal(factory_fake)
         await terminal.init_exchange_entities()
@@ -252,7 +252,7 @@ class TestTerminal:
     async def test_init_exchange_entities_set_event(self):
         data = {'exchanges': {}, 'markets': {}, 'symbols': {}, 'assets': {}}
         factory_fake = FakeTransportFactory()
-        factory_fake.init_exchange_entities_data = data
+        factory_fake.get_exchange_entities_data = data
 
         terminal = Terminal(factory_fake)
         await terminal.init_exchange_entities()
@@ -260,10 +260,59 @@ class TestTerminal:
         assert terminal.is_exchange_entities_inited()
         await terminal.wait_exchange_entities_inited(0.001)
 
+    @pytest.mark.asyncio
+    async def test_get_exchange_returns_inited_data(self):
+        exchange_tag = 'exchange-a'
+        factory_fake = FakeTransportFactory()
+        terminal = Terminal(factory_fake)
+
+        with pytest.raises(KeyError):
+            terminal.get_exchange(exchange_tag)
+
+        data = {'exchanges': {}, 'markets': {}, 'symbols': {}, 'assets': {}}
+        data['exchanges'][1] = {
+            'id': 1,
+            'tag': exchange_tag,
+            'name': 'Exchange',
+            'create_time': None,
+            'delete_time': None,
+            'disable_time': None,
+        }
+        factory_fake.get_exchange_entities_data = data
+
+        await terminal.init_exchange_entities()
+
+        exchange = terminal.get_exchange(exchange_tag)
+        assert exchange.id == 1
+
+    @pytest.mark.asyncio
+    async def test_subscribe_to_prices_calls_factory(self):
+        keys = []
+
+        factory = AsyncMock(spec_set=TransportFactory)
+        terminal = Terminal(factory)
+        await terminal.subscribe_to_prices(lambda: None, keys)
+
+        factory.consume_price_depth.assert_called_once_with(ANY, keys)
+
+    @pytest.mark.asyncio
+    async def test_subscribe_to_prices(self):
+        data = ('foo', {'bar': 100500})
+        factory_fake = FakeTransportFactory()
+        factory_fake.consume_price_depth_data = data
+
+        async def cb(*args):
+            assert args == data
+
+        terminal = Terminal(factory_fake)
+        keys = []
+        await terminal.subscribe_to_prices(cb, keys)
+
 
 class FakeTransportFactory(TransportFactory):
     def __init__(self):
-        self.init_exchange_entities_data: Optional[Mapping] = None
+        self.get_exchange_entities_data: Optional[Mapping] = None
+        self.consume_price_depth_data: Optional[Mapping] = None
 
     async def get_exchange_entities(
         self,
@@ -271,7 +320,7 @@ class FakeTransportFactory(TransportFactory):
     ) -> MessageConsumerCollection:
         result = MessageConsumerCollection()
         result.add_consumer(on_response)
-        await result.send(self.init_exchange_entities_data)
+        await result.send(self.get_exchange_entities_data)
 
         return result
 
@@ -280,4 +329,8 @@ class FakeTransportFactory(TransportFactory):
         on_response: Callable[..., Awaitable],
         consume_keys: Optional[List[DepthConsumeKey]] = None
     ) -> MessageConsumerCollection:
-        pass
+        result = MessageConsumerCollection()
+        result.add_consumer(on_response)
+        await result.send(self.consume_price_depth_data)
+
+        return result

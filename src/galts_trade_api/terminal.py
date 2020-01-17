@@ -46,11 +46,9 @@ class Terminal:
             self._on_init_exchange_entities_response
         )
 
-    # @TODO Cover
     def get_exchange(self, tag: str) -> Exchange:
         return self._exchanges[tag]
 
-    # @TODO Cover
     async def subscribe_to_prices(
         self,
         callback: OnPriceCallable,
