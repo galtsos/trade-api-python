@@ -77,6 +77,17 @@ class Terminal:
             self._assets[entity['tag']] = Asset(**entity)
 
         for id_, entity in data['symbols'].items():
+            if entity['base_asset_id'] not in data['assets']:
+                raise ValueError(
+                    f"No base asset with id {entity['base_asset_id']} "
+                    f"has been found for symbol with id {id_}"
+                )
+            if entity['quote_asset_id'] not in data['assets']:
+                raise ValueError(
+                    f"No quote asset with id {entity['quote_asset_id']} "
+                    f"has been found for symbol with id {id_}"
+                )
+
             self._symbols[id_] = Symbol(**entity)
 
         all_exchanges_tags = [entity['tag'] for entity in data['exchanges'].values()]
@@ -91,12 +102,17 @@ class Terminal:
             exchanges_ids_map[entity['id']] = exchange
 
         for entity in data['markets'].values():
-            key = entity['exchange_id']
-            if key not in exchanges_ids_map:
+            if entity['exchange_id'] not in exchanges_ids_map:
                 raise ValueError(
-                    f'No exchange with id {key} has been found for market with id {entity["id"]}'
+                    f"No exchange with id {entity['exchange_id']} "
+                    f"has been found for market with id {entity['id']}"
+                )
+            if entity['symbol_id'] not in data['symbols']:
+                raise ValueError(
+                    f"No symbol with id {entity['symbol_id']} "
+                    f"has been found for market with id {entity['id']}"
                 )
 
-            exchanges_ids_map[key].add_market(Market(**entity))
+            exchanges_ids_map[entity['exchange_id']].add_market(Market(**entity))
 
         self._exchange_entities_inited.set()

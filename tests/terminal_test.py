@@ -1,6 +1,6 @@
 import asyncio
 from typing import Awaitable, Callable, List, Mapping, Optional, Sequence
-from unittest.mock import ANY, Mock, call, patch
+from unittest.mock import ANY, Mock, call
 
 import pytest
 
@@ -34,11 +34,63 @@ def fixture_init_exchange_entities_exception_on_data_inconsistency():
 
     yield {
         **empty_data,
+        'assets': {
+            1: {
+                'id': 1,
+                'tag': 'asset-a',
+                'name': 'Asset A',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+        'symbols': {
+            1: {
+                'id': 1,
+                'base_asset_id': 2,
+                'quote_asset_id': 3,
+                'delete_time': None,
+            },
+        },
+    }, 'No base asset with id 2 has been found for symbol with id 1'
+
+    yield {
+        **empty_data,
+        'assets': {
+            1: {
+                'id': 1,
+                'tag': 'asset-a',
+                'name': 'Asset A',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+            2: {
+                'id': 1,
+                'tag': 'asset-b',
+                'name': 'Asset B',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+        'symbols': {
+            1: {
+                'id': 1,
+                'base_asset_id': 2,
+                'quote_asset_id': 3,
+                'delete_time': None,
+            },
+        },
+    }, 'No quote asset with id 3 has been found for symbol with id 1'
+
+    yield {
+        **empty_data,
         'exchanges': {
             1: {
                 'id': 1,
-                'tag': 'exchange',
-                'name': 'Exchange',
+                'tag': 'exchange-a',
+                'name': 'Exchange A',
                 'create_time': None,
                 'delete_time': None,
                 'disable_time': None,
@@ -48,10 +100,41 @@ def fixture_init_exchange_entities_exception_on_data_inconsistency():
             1: {
                 'id': 1,
                 'exchange_id': 2,
+                'symbol_id': 6,
                 'delete_time': None,
             },
         },
     }, 'No exchange with id 2 has been found for market with id 1'
+
+    yield {
+        **empty_data,
+        'exchanges': {
+            1: {
+                'id': 1,
+                'tag': 'exchange-a',
+                'name': 'Exchange A',
+                'create_time': None,
+                'delete_time': None,
+                'disable_time': None,
+            },
+            2: {
+                'id': 2,
+                'tag': 'exchange-b',
+                'name': 'Exchange B',
+                'create_time': None,
+                'delete_time': None,
+                'disable_time': None,
+            },
+        },
+        'markets': {
+            1: {
+                'id': 1,
+                'exchange_id': 2,
+                'symbol_id': 6,
+                'delete_time': None,
+            },
+        },
+    }, 'No symbol with id 6 has been found for market with id 1'
 
 
 def fixture_init_exchange_entities_ignore_deleted_entities():
@@ -84,6 +167,24 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
 
     yield 'Symbol', {
         **empty_data,
+        'assets': {
+            3: {
+                'id': 3,
+                'tag': 'asset-a',
+                'name': 'Asset A',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+            4: {
+                'id': 4,
+                'tag': 'asset-b',
+                'name': 'Asset B',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
         'symbols': {
             1: symbol,
             2: {**symbol, **{'id': 2, 'delete_time': True}},
@@ -119,6 +220,33 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
 
     yield 'Market', {
         **empty_data,
+        'assets': {
+            3: {
+                'id': 3,
+                'tag': 'asset-a',
+                'name': 'Asset A',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+            4: {
+                'id': 4,
+                'tag': 'asset-b',
+                'name': 'Asset B',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+        'symbols': {
+            6: {
+                'id': 6,
+                'base_asset_id': 3,
+                'quote_asset_id': 4,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
         'exchanges': {
             5: {
                 'id': 5,
