@@ -20,6 +20,11 @@ def fixture_asset_constructor_cast_properties():
         yield prop, '1', 1
         yield prop, 2.0, 2
 
+    # Time properties
+    for prop in ('create_time', 'delete_time',):
+        now = datetime.datetime.now()
+        yield prop, now, now
+
 
 class TestAsset:
     @pytest.mark.parametrize(
@@ -50,6 +55,11 @@ def fixture_symbol_constructor_cast_properties():
         yield prop, '-1', -1
         yield prop, '1', 1
         yield prop, 2.0, 2
+
+    # Time properties
+    for prop in ('create_time', 'delete_time',):
+        now = datetime.datetime.now()
+        yield prop, now, now
 
 
 class TestSymbol:

@@ -20,6 +20,11 @@ def fixture_exchange_constructor_cast_properties():
         yield prop, '1', 1
         yield prop, 2.0, 2
 
+    # Time properties
+    for prop in ('create_time', 'delete_time', 'disable_time',):
+        now = datetime.datetime.now()
+        yield prop, now, now
+
 
 class TestExchange:
     @pytest.mark.parametrize(
@@ -74,6 +79,11 @@ def fixture_market_constructor_cast_properties():
         yield prop, '-1', -1
         yield prop, '1', 1
         yield prop, 2.0, 2
+
+    # Time properties
+    for prop in ('create_time', 'delete_time',):
+        now = datetime.datetime.now()
+        yield prop, now, now
 
 
 class TestMarket:
