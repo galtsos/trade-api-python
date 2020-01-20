@@ -256,6 +256,7 @@ class TestRealTransportFactory:
             'galts_trade_api.transport.real.PipeResponseRouter',
             autospec=True
         )
+        router_instance = router_cls.return_value
         create_task = mocker.patch('asyncio.create_task', autospec=True)
 
         factory = self._get_factory_instance(process_ready_timeout=0.1)
@@ -264,9 +265,9 @@ class TestRealTransportFactory:
         cancel_other_tasks()
 
         router_cls.assert_called_once()
-        router_cls.return_value.start.assert_called_once()
+        router_instance.start.assert_called_once()
 
-        create_task.assert_called_once_with(router_cls.return_value.start())
+        create_task.assert_called_once()
         create_task.return_value.add_done_callback.assert_called_once()
 
     @pytest.mark.asyncio
