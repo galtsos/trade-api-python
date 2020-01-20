@@ -2,7 +2,7 @@ import asyncio
 import os
 import signal
 from functools import partial
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
+from typing import AbstractSet, Any, Awaitable, Callable, Dict, List, Optional
 
 from .structlogger import get_logger
 
@@ -54,7 +54,7 @@ def run_program_forever(
     target: Callable[..., Awaitable],
     loop: Optional[asyncio.AbstractEventLoop] = None,
     loop_debug: Optional[bool] = None,
-    handle_signals: Optional[Sequence[signal.Signals]] = None
+    handle_signals: Optional[AbstractSet[signal.Signals]] = None
 ) -> None:
     """
     Args:
