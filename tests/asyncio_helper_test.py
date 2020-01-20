@@ -5,8 +5,24 @@ from unittest.mock import ANY, Mock
 
 import pytest
 
-from galts_trade_api.asyncio_helper import AsyncProgramEnv, run_program_forever
+from galts_trade_api.asyncio_helper import AsyncProgramEnv, run_program_forever, signal_handler
 from .utils import AsyncMock
+
+
+def test_signal_handler_log_and_shutdown(mocker):
+    logger_mock = mocker.patch('galts_trade_api.asyncio_helper.logger')
+    shutdown_mock = mocker.patch('galts_trade_api.asyncio_helper.shutdown')
+    loop = Mock(spec_set=asyncio.AbstractEventLoop)
+
+    signal_handler(signal.SIGTERM, loop)
+
+    loop.create_task.assert_called_once()
+    shutdown_mock.assert_called_once_with(loop)
+    logger_mock.info.assert_called_once_with(
+        'Received exit signal',
+        process_id=ANY,
+        signal='SIGTERM'
+    )
 
 
 def fixture_setup_loop_by_arguments():
@@ -37,11 +53,10 @@ class TestRunProgramForever:
         loop.set_exception_handler.assert_called_once_with(env_mock().exception_handler)
         loop.create_task.assert_called_once_with(program(env_mock()))
         loop.run_forever.assert_called_once_with()
-
         logger_mock.info.assert_called_once_with('Successfully shutdown', process_id=ANY)
 
     def test_setup_loop_by_defaults(self, mocker):
-        env_mock = mocker.patch('galts_trade_api.asyncio_helper.AsyncProgramEnv')
+        mocker.patch('galts_trade_api.asyncio_helper.AsyncProgramEnv')
         new_event_loop_mock = mocker.patch('asyncio.new_event_loop', autospec=True)
 
         run_program_forever(lambda e: None)
@@ -104,7 +119,6 @@ class TestAsyncProgramEnv:
 
         loop.default_exception_handler.assert_called_once_with(context)
         shutdown_mock.assert_called_once_with(loop)
-
         logger_mock.info.assert_called_once_with('Caught exception', process_id=ANY)
 
     @pytest.mark.asyncio
