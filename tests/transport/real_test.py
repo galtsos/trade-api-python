@@ -434,6 +434,12 @@ def fixture_run_calls_async_helper():
     yield False
 
 
+def fixture_consume_price_depth():
+    yield frozenset(), ['#']
+    yield frozenset([DepthConsumeKey('test1'), DepthConsumeKey('test2')]), \
+        ['test1.*.*', 'test2.*.*']
+
+
 class TestRealTransportProcess:
     @pytest.mark.parametrize(
         'prop, arg_value, expected_value',
@@ -594,7 +600,8 @@ class TestRealTransportProcess:
         process_task.cancel()
 
     @pytest.mark.asyncio
-    async def test_consume_price_depth(self, mocker):
+    @pytest.mark.parametrize('keys, expected_bind_exchanges', fixture_consume_price_depth())
+    async def test_consume_price_depth(self, mocker, keys, expected_bind_exchanges):
         connection_mock = mocker.patch(
             'galts_trade_api.transport.real.RabbitConnection',
             autospec=True
@@ -616,7 +623,6 @@ class TestRealTransportProcess:
 
         dsn = 'test.local'
         exchange = 'test-exchange'
-        keys = frozenset([DepthConsumeKey('test1'), DepthConsumeKey('test2')])
         request = ConsumePriceDepthRequest(dsn, exchange, keys)
         parent_connection.send(request)
         await asyncio.sleep(0.001)
@@ -625,8 +631,8 @@ class TestRealTransportProcess:
         connection_instance_mock.create_channel.assert_called_once_with(100)
         consumer_mock.assert_called_once_with(channel_mock, exchange, ANY)
         consumer_instance_mock.create_queue.assert_called_once()
-        queue_mock.bind.assert_any_call(consumer_instance_mock.exchange, 'test1.*.*')
-        queue_mock.bind.assert_any_call(consumer_instance_mock.exchange, 'test2.*.*')
+        for expected_bind_exchange in expected_bind_exchanges:
+            queue_mock.bind.assert_any_call(consumer_instance_mock.exchange, expected_bind_exchange)
 
         # This type of request don't answered synchronously
         assert not parent_connection.poll(0.001)

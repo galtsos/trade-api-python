@@ -3,6 +3,7 @@ from asyncio import Event
 from dataclasses import dataclass
 from multiprocessing.connection import Pipe
 from typing import Any, Dict, Optional, Type
+from unittest.mock import Mock
 
 import pytest
 
@@ -178,6 +179,38 @@ class TestPipeResponseRouter:
         router_task.cancel()
 
     @pytest.mark.asyncio
+    async def test_start_dont_dispatch_unknown_request(self):
+        pipe_request_known = RequestStub('test 1')
+        pipe_request_unknown = RequestStub('test 2')
+        response = [pipe_request_unknown, 'test response']
+
+        parent_conn, child_conn = Pipe()
+        consumer1_called = Event()
+        poll_delay = 0.001
+
+        def on_exception(_: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+            pytest.fail(f"Unexpected exception: {context['exception']}")
+
+        asyncio.get_running_loop().set_exception_handler(on_exception)
+
+        router = PipeResponseRouter(parent_conn, poll_delay)
+        router_task = asyncio.create_task(router.start())
+
+        async def on_response(data):
+            consumer1_called.set()
+
+        consumer_collection = router.prepare_consumers_of_response(pipe_request_known)
+        consumer_collection.add_consumer(on_response)
+
+        child_conn.send(response)
+
+        await asyncio.sleep(poll_delay * 5)
+
+        assert not consumer1_called.is_set()
+
+        router_task.cancel()
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         'response, expected_exception_class, expected_exception_msg',
         fixture_start_exceptions()
@@ -235,3 +268,13 @@ class TestPipeResponseRouter:
         assert not router_task.cancelled()
 
         router_task.cancel()
+
+    def test_prepare_consumers_of_response_realize_singleton(self):
+        parent_conn = Mock()
+        router = PipeResponseRouter(parent_conn)
+
+        pipe_request = RequestStub('test')
+        res1 = router.prepare_consumers_of_response(pipe_request)
+        res2 = router.prepare_consumers_of_response(pipe_request)
+
+        assert res1 is res2
