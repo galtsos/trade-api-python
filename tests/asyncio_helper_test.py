@@ -39,7 +39,7 @@ class TestShutdown:
         logger_mock.debug.assert_called_once_with(
             'Cancelling outstanding tasks',
             process_id=ANY,
-            amount=0
+            count=0
         )
 
     @pytest.mark.asyncio
@@ -76,7 +76,7 @@ class TestShutdown:
         logger_mock.debug.assert_called_once_with(
             'Cancelling outstanding tasks',
             process_id=ANY,
-            amount=3
+            count=3
         )
 
 
