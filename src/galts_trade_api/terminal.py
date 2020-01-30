@@ -7,6 +7,7 @@ from .exchange import Exchange, Market
 from .tools import find_duplicates_in_list
 from .transport import DepthConsumeKey, TransportFactory
 
+# @TODO Refactor last elements
 OnPriceCallable = Callable[[str, str, str, datetime.datetime, List, List], Awaitable]
 
 
