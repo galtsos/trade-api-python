@@ -44,14 +44,14 @@ class TestExchange:
         with pytest.raises(ValueError, match='already exists'):
             exchange.add_market(market)
 
-    def test_get_market_by_custom_tag(self):
+    def test_markets_by_tag(self):
         market_tag = 'market-tag'
         exchange = self._factory_exchange()
         market = factory_market(custom_tag=market_tag)
 
         exchange.add_market(market)
 
-        assert exchange.get_market_by_custom_tag(market_tag) is market
+        assert exchange.markets_by_tag[market_tag] is market
 
     @classmethod
     def _factory_exchange(

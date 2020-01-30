@@ -14,9 +14,13 @@ class Terminal:
     def __init__(self, transport: TransportFactory):
         self._transport_factory: TransportFactory = transport
         self._exchange_entities_inited = Event()
-        self._exchanges: Dict[str, Exchange] = {}
-        self._assets: Dict[str, Asset] = {}
+        # @TODO Cover
+        self._assets_by_id: Dict[int, Asset] = {}
+        self._assets_by_tag: Dict[str, Asset] = {}
         self._symbols: Dict[int, Symbol] = {}
+        # @TODO Cover
+        self._exchanges_by_id: Dict[int, Exchange] = {}
+        self._exchanges_by_tag: Dict[str, Exchange] = {}
 
     @property
     def transport_factory(self):
@@ -46,8 +50,25 @@ class Terminal:
             self._on_init_exchange_entities_response
         )
 
-    def get_exchange(self, tag: str) -> Exchange:
-        return self._exchanges[tag]
+    @property
+    def assets_by_tag(self):
+        return self._assets_by_tag
+
+    @property
+    def assets_by_id(self):
+        return self._assets_by_id
+
+    @property
+    def symbols_by_id(self):
+        return self._symbols
+
+    @property
+    def exchanges_by_tag(self):
+        return self._exchanges_by_tag
+
+    @property
+    def exchanges_by_id(self):
+        return self._exchanges_by_id
 
     async def subscribe_to_prices(
         self,
@@ -74,7 +95,9 @@ class Terminal:
             raise ValueError(f"Assets with duplicates in tags found: {', '.join(duplicates)}")
 
         for entity in data['assets'].values():
-            self._assets[entity['tag']] = Asset(**entity)
+            asset = Asset(**entity)
+            self._assets_by_id[entity['id']] = asset
+            self._assets_by_tag[entity['tag']] = asset
 
         for id_, entity in data['symbols'].items():
             if entity['base_asset_id'] not in data['assets']:
@@ -95,14 +118,13 @@ class Terminal:
         if len(duplicates):
             raise ValueError(f"Exchanges with duplicates in tags found: {', '.join(duplicates)}")
 
-        exchanges_ids_map = {}
         for entity in data['exchanges'].values():
             exchange = Exchange(**entity)
-            self._exchanges[entity['tag']] = exchange
-            exchanges_ids_map[entity['id']] = exchange
+            self._exchanges_by_id[entity['id']] = exchange
+            self._exchanges_by_tag[entity['tag']] = exchange
 
         for entity in data['markets'].values():
-            if entity['exchange_id'] not in exchanges_ids_map:
+            if entity['exchange_id'] not in self._exchanges_by_id:
                 raise ValueError(
                     f"No exchange with id {entity['exchange_id']} "
                     f"has been found for market with id {entity['id']}"
@@ -113,6 +135,6 @@ class Terminal:
                     f"has been found for market with id {entity['id']}"
                 )
 
-            exchanges_ids_map[entity['exchange_id']].add_market(Market(**entity))
+            self._exchanges_by_id[entity['exchange_id']].add_market(Market(**entity))
 
         self._exchange_entities_inited.set()

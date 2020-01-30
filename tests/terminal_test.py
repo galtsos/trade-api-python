@@ -395,7 +395,7 @@ class TestTerminal:
         terminal = Terminal(factory_fake)
 
         with pytest.raises(KeyError):
-            terminal.get_exchange(exchange_tag)
+            e = terminal.exchanges_by_tag[exchange_tag]
 
         data = {'exchanges': {}, 'markets': {}, 'symbols': {}, 'assets': {}}
         data['exchanges'][1] = {
@@ -410,7 +410,7 @@ class TestTerminal:
 
         await terminal.init_exchange_entities()
 
-        exchange = terminal.get_exchange(exchange_tag)
+        exchange = terminal.exchanges_by_tag[exchange_tag]
         assert exchange.id == 1
 
     @pytest.mark.asyncio

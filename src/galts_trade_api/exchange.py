@@ -21,7 +21,8 @@ class Exchange:
         self._delete_time: Optional[datetime.datetime] = delete_time
         self._disable_time: Optional[datetime.datetime] = disable_time
 
-        self._markets: Dict[str, Market] = {}
+        self._markets_by_id: Dict[int, Market] = {}
+        self._markets_by_tag: Dict[str, Market] = {}
 
     @property
     def id(self):
@@ -47,16 +48,27 @@ class Exchange:
     def disable_time(self):
         return self._disable_time
 
+    @property
+    def markets_by_id(self):
+        # @TODO Cover
+        return self._markets_by_id
+
+    @property
+    def markets_by_tag(self):
+        return self._markets_by_tag
+
     def add_market(self, market: Market) -> None:
-        if market.custom_tag in self._markets:
+        # @TODO Cover
+        if market.id in self._markets_by_id:
+            raise ValueError(f'Market with id {market.id} already exists in exchange {self.tag}')
+        if market.custom_tag in self._markets_by_tag:
             raise ValueError(
                 f'Market with tag "{market.custom_tag}" already exists in exchange {self.tag}'
             )
 
-        self._markets[market.custom_tag] = market
-
-    def get_market_by_custom_tag(self, custom_tag: str) -> Market:
-        return self._markets[custom_tag]
+        # @TODO Cover
+        self._markets_by_id[market.id] = market
+        self._markets_by_tag[market.custom_tag] = market
 
 
 class Market:
