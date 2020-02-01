@@ -373,8 +373,7 @@ class TestRealTransportFactory:
         )
         process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
 
-        async def cb(data):
-            assert data == expected_response
+        async def cb(data): assert data == expected_response
 
         factory = self._get_factory_instance(**factory_args)
         await factory.init()

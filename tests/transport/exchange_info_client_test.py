@@ -192,8 +192,7 @@ class TestSymbolClient:
     ):
         client = ExchangeInfoClient(grpc_channel, timeout_get_entities=1)
 
-        def sut() -> None:
-            client.get_entities(*method_inputs)
+        def sut() -> None: client.get_entities(*method_inputs)
 
         with pytest.raises(grpc.RpcError) as exc_info:
             with thread_with_timeout(sut):

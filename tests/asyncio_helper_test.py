@@ -95,8 +95,7 @@ class TestRunProgramForever:
         env_mock = mocker.patch('galts_trade_api.asyncio_helper.AsyncProgramEnv')
         loop = Mock(spec_set=asyncio.AbstractEventLoop)
 
-        def program(env):
-            assert env is env_mock()
+        def program(env): assert env is env_mock()
 
         run_program_forever(program, loop, loop_debug, handle_signals)
 

@@ -108,8 +108,7 @@ class RealTransportFactory(TransportFactory):
         self._parent_connection, self._child_connection = Pipe()
         self._response_router: Optional[PipeResponseRouter] = None
 
-        def sanity_string(value: str) -> str:
-            return str(value).strip()
+        def sanity_string(value: str) -> str: return str(value).strip()
 
         self._exchange_info_dsn = sanity_string(exchange_info_dsn)
         self._exchange_info_get_entities_timeout = float(exchange_info_get_entities_timeout)

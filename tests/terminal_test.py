@@ -429,8 +429,7 @@ class TestTerminal:
         factory_fake = FakeTransportFactory()
         factory_fake.consume_price_depth_data = data
 
-        async def cb(*args):
-            assert args == data
+        async def cb(*args): assert args == data
 
         terminal = Terminal(factory_fake)
         keys = []

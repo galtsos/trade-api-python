@@ -158,11 +158,8 @@ class TestPipeResponseRouter:
         router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
 
-        async def on_response1(data):
-            consumer1_called.set()
-
-        async def on_response2(data):
-            consumer1_called.set()
+        async def on_response1(data): consumer1_called.set()
+        async def on_response2(data): consumer1_called.set()
 
         consumer_collection = router.prepare_consumers_of_response(pipe_request1)
         consumer_collection.add_consumer(on_response1)
@@ -196,8 +193,7 @@ class TestPipeResponseRouter:
         router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
 
-        async def on_response(data):
-            consumer1_called.set()
+        async def on_response(data): consumer1_called.set()
 
         consumer_collection = router.prepare_consumers_of_response(pipe_request_known)
         consumer_collection.add_consumer(on_response)
@@ -254,8 +250,7 @@ class TestPipeResponseRouter:
         router = PipeResponseRouter(parent_conn, poll_delay)
         router_task = asyncio.create_task(router.start())
 
-        async def on_response(data):
-            raise expected_exception
+        async def on_response(data): raise expected_exception
 
         consumer_collection = router.prepare_consumers_of_response(pipe_request)
         consumer_collection.add_consumer(on_response)
