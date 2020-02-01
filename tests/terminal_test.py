@@ -66,7 +66,7 @@ def fixture_init_exchange_entities_exception_on_data_inconsistency():
                 'delete_time': None,
             },
             2: {
-                'id': 1,
+                'id': 2,
                 'tag': 'asset-b',
                 'name': 'Asset B',
                 'precision': 2,
