@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import Event
 from typing import Awaitable, Callable, List, Mapping, Optional, Sequence
 from unittest.mock import ANY, Mock, call
 
@@ -425,15 +426,19 @@ class TestTerminal:
 
     @pytest.mark.asyncio
     async def test_subscribe_to_prices(self):
+        is_called = Event()
         data = ('foo', {'bar': 100500})
         factory_fake = FakeTransportFactory()
         factory_fake.consume_price_depth_data = data
 
-        async def cb(*args): assert args == data
+        async def cb(*args):
+            assert args == data
+            is_called.set()
 
         terminal = Terminal(factory_fake)
         keys = []
         await terminal.subscribe_to_prices(cb, keys)
+        assert is_called.is_set()
 
 
 class FakeTransportFactory(TransportFactory):
