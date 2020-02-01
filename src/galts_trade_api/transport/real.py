@@ -88,9 +88,9 @@ class RabbitConsumer:
         self._exchange = await self.channel.declare_exchange(self._exchange_name, passive=True)
         self._queue = await self.channel.declare_queue(exclusive=True)
 
-        await self._queue.consume(self._on_message, no_ack=True)
+        await self.queue.consume(self._on_message, no_ack=True)
 
-        return self._queue
+        return self.queue
 
 
 class RealTransportFactory(TransportFactory):
