@@ -230,9 +230,9 @@ class TestRealTransportFactory:
         process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
 
         factory = self._get_factory_instance()
+        await factory.init()
 
         with pytest.raises(RuntimeError, match='should be created only once'):
-            await factory.init()
             await factory.init()
 
         cancel_other_async_tasks()
