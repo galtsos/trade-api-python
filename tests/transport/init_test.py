@@ -2,7 +2,7 @@ import asyncio
 from asyncio import Event
 from dataclasses import dataclass
 from multiprocessing.connection import Pipe
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Mapping, Optional, Sequence, Type
 from unittest.mock import Mock
 
 import pytest
@@ -34,7 +34,11 @@ def fixture_format_for_rabbitmq_wrong():
 class TestDepthConsumeKey:
     @staticmethod
     @pytest.mark.parametrize('expected_result, args, kwargs', fixture_format_for_rabbitmq_correct())
-    def test_format_for_rabbitmq_result_format(expected_result, args, kwargs):
+    def test_format_for_rabbitmq_result_format(
+        expected_result: str,
+        args: Sequence,
+        kwargs: Mapping
+    ):
         key = DepthConsumeKey(*args, **kwargs)
 
         assert expected_result == key.format_for_rabbitmq()
@@ -44,7 +48,12 @@ class TestDepthConsumeKey:
         'exchange, market_tag, symbol_tag, expected_msg',
         fixture_format_for_rabbitmq_wrong()
     )
-    def test_format_for_rabbitmq_exceptions(exchange, market_tag, symbol_tag, expected_msg):
+    def test_format_for_rabbitmq_exceptions(
+        exchange: str,
+        market_tag: str,
+        symbol_tag: str,
+        expected_msg: str
+    ):
         with pytest.raises(ValueError, match=expected_msg):
             DepthConsumeKey(exchange, market_tag, symbol_tag).format_for_rabbitmq()
 
@@ -159,6 +168,7 @@ class TestPipeResponseRouter:
         router_task = asyncio.create_task(router.start())
 
         async def on_response1(data): consumer1_called.set()
+
         async def on_response2(data): consumer1_called.set()
 
         consumer_collection = router.prepare_consumers_of_response(pipe_request1)

@@ -1,23 +1,24 @@
 import asyncio
 from multiprocessing import Event, Pipe
 from multiprocessing.connection import Connection
-from typing import Any, Callable, Dict
+from typing import Any, AsyncGenerator, Callable, Dict, FrozenSet, Mapping, Sequence
 from unittest.mock import ANY, Mock
 
 import aio_pika
 import pytest
+from pytest_mock import MockFixture
 
 from galts_trade_api.asyncio_helper import AsyncProgramEnv
 from galts_trade_api.transport import DepthConsumeKey, PipeRequest, TransportFactoryException
 from galts_trade_api.transport.real import ConsumePriceDepthRequest, \
     GetExchangeEntitiesRequest, RabbitConnection, RabbitConsumer, RealTransportFactory, \
     RealTransportProcess
-from ..utils import AsyncMock, cancel_other_tasks
+from ..utils import AsyncMock, cancel_other_async_tasks
 
 
 @pytest.fixture
-async def unexpected_exceptions_handler():
-    def on_exception(_: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+async def unexpected_exceptions_handler() -> AsyncGenerator[None, None]:
+    def on_exception(_, context: Dict[str, Any]) -> None:
         pytest.fail(f"Unexpected exception: {context['message']}")
 
     loop = asyncio.get_running_loop()
@@ -43,7 +44,7 @@ class TestRabbitConnection:
         assert conn.connection is None
 
     @pytest.mark.asyncio
-    async def test_constructor_trim_dsn(self, mocker):
+    async def test_constructor_trim_dsn(self, mocker: MockFixture):
         dsn = ' \t test4.local  '
         expected_dsn = dsn.strip()
         assert dsn != expected_dsn
@@ -56,7 +57,7 @@ class TestRabbitConnection:
         connect_robust.assert_called_once_with(expected_dsn)
 
     @pytest.mark.asyncio
-    async def test_create_channel_reuse_one_connection(self, mocker):
+    async def test_create_channel_reuse_one_connection(self, mocker: MockFixture):
         mocker.patch('aio_pika.connect_robust', new_callable=AsyncMock)
 
         conn = RabbitConnection('test5.local')
@@ -67,7 +68,7 @@ class TestRabbitConnection:
         assert conn.connection is first_execution_connection
 
     @pytest.mark.asyncio
-    async def test_create_channel_use_delivered_dsn(self, mocker):
+    async def test_create_channel_use_delivered_dsn(self, mocker: MockFixture):
         connect_robust = mocker.patch('aio_pika.connect_robust', new_callable=AsyncMock)
 
         dsn = 'test6.local'
@@ -194,14 +195,14 @@ class TestRealTransportFactory:
         'prop, arg_value, expected_value',
         fixture_factory_constructor_cast_properties()
     )
-    def test_constructor_cast_properties(self, prop, arg_value, expected_value):
+    def test_constructor_cast_properties(self, prop: str, arg_value: Any, expected_value: Any):
         factory = self._get_factory_instance(**{prop: arg_value})
 
         assert getattr(factory, prop) == expected_value
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize('loop_debug', fixture_init_starts_transport_process())
-    async def test_init_starts_transport_process(self, mocker, loop_debug):
+    async def test_init_starts_transport_process(self, mocker: MockFixture, loop_debug: bool):
         process_cls = mocker.patch(
             'galts_trade_api.transport.real.RealTransportProcess',
             autospec=True
@@ -218,10 +219,10 @@ class TestRealTransportFactory:
         )
         process_cls.instance.start.assert_called_once()
 
-        cancel_other_tasks()
+        cancel_other_async_tasks()
 
     @pytest.mark.asyncio
-    async def test_init_exception_for_second_call(self, mocker):
+    async def test_init_exception_for_second_call(self, mocker: MockFixture):
         process_cls = mocker.patch(
             'galts_trade_api.transport.real.RealTransportProcess',
             autospec=True
@@ -234,10 +235,10 @@ class TestRealTransportFactory:
             await factory.init()
             await factory.init()
 
-        cancel_other_tasks()
+        cancel_other_async_tasks()
 
     @pytest.mark.asyncio
-    async def test_init_exception_for_long_transport_process_init(self, mocker):
+    async def test_init_exception_for_long_transport_process_init(self, mocker: MockFixture):
         mocker.patch('galts_trade_api.transport.real.RealTransportProcess', autospec=True)
 
         factory = self._get_factory_instance(process_ready_timeout=0.1)
@@ -246,7 +247,7 @@ class TestRealTransportFactory:
             await factory.init()
 
     @pytest.mark.asyncio
-    async def test_init_starts_router_task(self, mocker):
+    async def test_init_starts_router_task(self, mocker: MockFixture):
         process_cls = mocker.patch(
             'galts_trade_api.transport.real.RealTransportProcess',
             autospec=True
@@ -262,7 +263,7 @@ class TestRealTransportFactory:
         factory = self._get_factory_instance(process_ready_timeout=0.1)
         await factory.init()
 
-        cancel_other_tasks()
+        cancel_other_async_tasks()
 
         router_cls.assert_called_once()
         router_instance.start.assert_called_once()
@@ -273,7 +274,7 @@ class TestRealTransportFactory:
     @pytest.mark.asyncio
     async def test_init_set_done_callback_for_router_task_which_shutdown_on_cancellation(
         self,
-        mocker
+        mocker: MockFixture
     ):
         factory_shutdown = mocker.patch.object(RealTransportFactory, 'shutdown')
         process_cls = mocker.patch(
@@ -293,7 +294,7 @@ class TestRealTransportFactory:
         factory = self._get_factory_instance(process_ready_timeout=0.1)
         await factory.init()
 
-        cancel_other_tasks()
+        cancel_other_async_tasks()
 
         # Pass a loop iteration to execute the done callback
         await asyncio.sleep(0.001)
@@ -301,7 +302,10 @@ class TestRealTransportFactory:
         factory_shutdown.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_init_set_done_callback_for_router_task_which_shutdown_on_exception(self, mocker):
+    async def test_init_set_done_callback_for_router_task_which_shutdown_on_exception(
+        self,
+        mocker: MockFixture
+    ):
         factory_shutdown = mocker.patch.object(RealTransportFactory, 'shutdown')
         process_cls = mocker.patch(
             'galts_trade_api.transport.real.RealTransportProcess',
@@ -333,7 +337,7 @@ class TestRealTransportFactory:
         factory_shutdown.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_shutdown_calls_process(self, mocker):
+    async def test_shutdown_calls_process(self, mocker: MockFixture):
         process_cls = mocker.patch(
             'galts_trade_api.transport.real.RealTransportProcess',
             autospec=True
@@ -346,7 +350,7 @@ class TestRealTransportFactory:
 
         process_cls.instance.terminate.assert_called_once()
 
-        cancel_other_tasks()
+        cancel_other_async_tasks()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -355,11 +359,11 @@ class TestRealTransportFactory:
     )
     async def test_remote_methods_setup_callback(
         self,
-        mocker,
-        factory_args,
-        factory_method_name,
-        factory_method_args,
-        expected_request
+        mocker: MockFixture,
+        factory_args: Mapping,
+        factory_method_name: str,
+        factory_method_args: Mapping,
+        expected_request: PipeRequest
     ):
         expected_response = 'test response'
 
@@ -382,7 +386,7 @@ class TestRealTransportFactory:
 
         parent_connection_mock.send.assert_called_once_with(expected_request)
 
-        cancel_other_tasks()
+        cancel_other_async_tasks()
 
     @classmethod
     def _get_factory_instance(
@@ -392,7 +396,7 @@ class TestRealTransportFactory:
         depth_scraping_queue_exchange: str = 'test-exchange',
         exchange_info_get_entities_timeout: float = 5.0,
         process_ready_timeout: float = 2.0,
-    ):
+    ) -> RealTransportFactory:
         return RealTransportFactory(
             exchange_info_dsn=exchange_info_dsn,
             depth_scraping_queue_dsn=depth_scraping_queue_dsn,
@@ -445,7 +449,7 @@ class TestRealTransportProcess:
         'prop, arg_value, expected_value',
         fixture_process_constructor_cast_properties()
     )
-    def test_constructor_cast_properties(self, prop, arg_value, expected_value):
+    def test_constructor_cast_properties(self, prop: str, arg_value: Any, expected_value: Any):
         process = RealTransportProcess(
             ready_event=Event(),
             connection=Mock(spec_set=Connection),
@@ -455,7 +459,7 @@ class TestRealTransportProcess:
         assert getattr(process, prop) == expected_value
 
     @pytest.mark.parametrize('loop_debug', fixture_run_calls_async_helper())
-    def test_run_calls_async_helper(self, mocker, loop_debug):
+    def test_run_calls_async_helper(self, mocker: MockFixture, loop_debug: bool):
         helper_mock = mocker.patch('galts_trade_api.transport.real.run_program_forever')
 
         process = RealTransportProcess(
@@ -517,7 +521,7 @@ class TestRealTransportProcess:
         process_task.cancel()
 
     @pytest.mark.asyncio
-    async def test_main_set_exception_handler(self, mocker):
+    async def test_main_set_exception_handler(self, mocker: MockFixture):
         shutdown_mock = mocker.patch('galts_trade_api.asyncio_helper.shutdown')
         env = AsyncProgramEnv()
         loop = asyncio.get_running_loop()
@@ -551,7 +555,7 @@ class TestRealTransportProcess:
         process_task.cancel()
 
     @pytest.mark.asyncio
-    async def test_main_exception_for_unknown_handler(self, mocker):
+    async def test_main_exception_for_unknown_handler(self):
         env_mock = Mock(spec_set=AsyncProgramEnv)
         parent_connection, child_connection = Pipe()
         process = RealTransportProcess(ready_event=Event(), connection=child_connection)
@@ -566,7 +570,7 @@ class TestRealTransportProcess:
             process_task.result()
 
     @pytest.mark.asyncio
-    async def test_get_exchange_entities_calls_exchange_info(self, mocker):
+    async def test_get_exchange_entities_calls_exchange_info(self, mocker: MockFixture):
         expected_response = {'asset': []}
         client_mock = mocker.patch(
             'galts_trade_api.transport.real.ExchangeInfoClient',
@@ -601,7 +605,12 @@ class TestRealTransportProcess:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize('keys, expected_bind_exchanges', fixture_consume_price_depth())
-    async def test_consume_price_depth(self, mocker, keys, expected_bind_exchanges):
+    async def test_consume_price_depth(
+        self,
+        mocker: MockFixture,
+        keys: FrozenSet,
+        expected_bind_exchanges: Sequence
+    ):
         connection_mock = mocker.patch(
             'galts_trade_api.transport.real.RabbitConnection',
             autospec=True

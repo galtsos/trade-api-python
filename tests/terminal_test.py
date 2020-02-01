@@ -4,6 +4,7 @@ from typing import Awaitable, Callable, List, Mapping, Optional, Sequence
 from unittest.mock import ANY, Mock, call
 
 import pytest
+from pytest_mock import MockFixture
 
 from galts_trade_api.terminal import Terminal
 from galts_trade_api.transport import DepthConsumeKey, MessageConsumerCollection, TransportFactory
@@ -277,7 +278,7 @@ class TestTerminal:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize('loop_debug', fixture_init_transport_calls_factory())
-    async def test_init_transport_calls_factory(self, loop_debug):
+    async def test_init_transport_calls_factory(self, loop_debug: bool):
         factory = AsyncMock(spec_set=TransportFactory)
         terminal = Terminal(factory)
         await terminal.init_transport(loop_debug)
@@ -359,7 +360,7 @@ class TestTerminal:
     )
     async def test_init_exchange_entities_ignore_deleted_entities(
         self,
-        mocker,
+        mocker: MockFixture,
         entity_class_name: str,
         data: Mapping,
         expected_call: Sequence,

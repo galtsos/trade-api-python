@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Dict, Tuple, Type
+from typing import Any, Dict, Optional, Tuple, Type
 from unittest import mock
 from unittest.mock import call
 
@@ -130,9 +130,9 @@ class TestSymbolClient:
         fixture_incorrect_factory_dsn()
     )
     def test_incorrect_factory_dsn(
-        incorrect_dsn: str,
+        incorrect_dsn: Any,
         exception_expected: Type[Exception],
-        exception_text: str
+        exception_text: Optional[str]
     ):
         with pytest.raises(exception_expected, match=exception_text):
             ExchangeInfoClient.factory(incorrect_dsn)
