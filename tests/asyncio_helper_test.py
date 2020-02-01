@@ -86,10 +86,7 @@ def fixture_setup_loop_by_arguments():
 
 
 class TestRunProgramForever:
-    @pytest.mark.parametrize(
-        'loop_debug, handle_signals',
-        fixture_setup_loop_by_arguments()
-    )
+    @pytest.mark.parametrize('loop_debug, handle_signals', fixture_setup_loop_by_arguments())
     def test_setup_loop_by_arguments(self, mocker, loop_debug, handle_signals):
         logger_mock = mocker.patch('galts_trade_api.asyncio_helper.logger')
         env_mock = mocker.patch('galts_trade_api.asyncio_helper.AsyncProgramEnv')
