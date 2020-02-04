@@ -3,13 +3,10 @@ from __future__ import annotations
 import datetime
 from typing import Dict, Optional
 
-from .transport import TransportFactory
-
 
 class Exchange:
     def __init__(
         self,
-        transport_factory: TransportFactory,
         id: int,
         tag: str,
         name: str,
@@ -17,7 +14,6 @@ class Exchange:
         delete_time: Optional[datetime.datetime],
         disable_time: Optional[datetime.datetime]
     ):
-        self._transport_factory = transport_factory
         self._id: int = int(id)
         self._tag: str = str(tag).strip()
         self._name: str = str(name).strip()
@@ -28,16 +24,28 @@ class Exchange:
         self._markets: Dict[str, Market] = {}
 
     @property
-    def transport_factory(self):
-        return self._transport_factory
-
-    @transport_factory.setter
-    def transport_factory(self, value):
-        self._transport_factory = value
+    def id(self):
+        return self._id
 
     @property
     def tag(self):
         return self._tag
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def create_time(self):
+        return self._create_time
+
+    @property
+    def delete_time(self):
+        return self._delete_time
+
+    @property
+    def disable_time(self):
+        return self._disable_time
 
     def add_market(self, market: Market) -> None:
         if market.custom_tag in self._markets:
@@ -54,7 +62,6 @@ class Exchange:
 class Market:
     def __init__(
         self,
-        transport_factory: TransportFactory,
         id: int,
         custom_tag: str,
         exchange_id: int,
@@ -63,7 +70,6 @@ class Market:
         create_time: datetime.datetime,
         delete_time: Optional[datetime.datetime]
     ):
-        self._transport_factory = transport_factory
         self._id: int = int(id)
         self._custom_tag: str = str(custom_tag).strip()
         self._exchange_id: int = int(exchange_id)
@@ -73,13 +79,29 @@ class Market:
         self._delete_time: Optional[datetime.datetime] = delete_time
 
     @property
-    def transport_factory(self):
-        return self._transport_factory
-
-    @transport_factory.setter
-    def transport_factory(self, value):
-        self._transport_factory = value
+    def id(self):
+        return self._id
 
     @property
     def custom_tag(self):
         return self._custom_tag
+
+    @property
+    def exchange_id(self):
+        return self._exchange_id
+
+    @property
+    def symbol_id(self):
+        return self._symbol_id
+
+    @property
+    def trade_endpoint(self):
+        return self._trade_endpoint
+
+    @property
+    def create_time(self):
+        return self._create_time
+
+    @property
+    def delete_time(self):
+        return self._delete_time

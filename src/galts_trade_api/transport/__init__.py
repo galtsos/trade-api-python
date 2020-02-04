@@ -35,7 +35,11 @@ class MessageConsumerCollection:
     async def send(self, data: Any) -> None:
         coroutines = [consumer(data) for consumer in self._consumers]
 
-        await asyncio.gather(*coroutines)
+        tasks_result = await asyncio.gather(*coroutines, return_exceptions=True)
+
+        for result in tasks_result:
+            if isinstance(result, BaseException):
+                raise result
 
 
 class PipeRequest:
@@ -63,7 +67,7 @@ class PipeResponseRouter:
             if not isinstance(message, Sequence):
                 raise ValueError('Pipe response message should be an object with indexing')
 
-            if isinstance(message[0], Exception):
+            if len(message) == 1 and isinstance(message[0], Exception):
                 raise message[0]
 
             if len(message) != 2:
@@ -82,6 +86,8 @@ class PipeResponseRouter:
         if request not in self._consumers:
             return
 
+        # Don't store the sub-tasks because we don't want to cancel them if self.start() has been
+        # cancelled.
         asyncio.create_task(self._consumers[request].send(response))
 
 
@@ -93,14 +99,14 @@ class TransportFactory(ABC):
         pass
 
     @abstractmethod
-    async def init_exchange_entities(
+    async def get_exchange_entities(
         self,
         on_response: Callable[..., Awaitable]
     ) -> MessageConsumerCollection:
         pass
 
     @abstractmethod
-    async def get_depth_scraping_consumer(
+    async def consume_price_depth(
         self,
         on_response: Callable[..., Awaitable],
         consume_keys: Optional[List[DepthConsumeKey]] = None

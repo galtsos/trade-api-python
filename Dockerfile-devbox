@@ -4,7 +4,7 @@ LABEL maintainer="sergey.nevmerzhitsky@gmail.com"
 WORKDIR /var/app
 
 RUN set -e; \
-    pip install pytest pytest-asyncio grpcio-testing structlog ujson
+    pip install pytest pytest-asyncio pytest-mock grpcio-testing structlog ujson
 
 COPY examples ./examples
 COPY src ./src

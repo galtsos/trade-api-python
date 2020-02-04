@@ -1,9 +1,10 @@
 import datetime
 from asyncio import Event, wait_for
-from typing import Awaitable, Callable, Dict, List, MutableMapping, Optional
+from typing import Awaitable, Callable, Dict, List, Mapping, MutableMapping, Optional
 
 from .asset import Asset, Symbol
 from .exchange import Exchange, Market
+from .tools import find_duplicates_in_list
 from .transport import DepthConsumeKey, TransportFactory
 
 OnPriceCallable = Callable[[str, str, str, datetime.datetime, List, List], Awaitable]
@@ -31,6 +32,9 @@ class Terminal:
     def shutdown_transport(self) -> None:
         self.transport_factory.shutdown()
 
+    async def auth_user(self, username: str, password: str) -> bool:
+        return True
+
     def is_exchange_entities_inited(self) -> bool:
         return self._exchange_entities_inited.is_set()
 
@@ -38,12 +42,9 @@ class Terminal:
         await wait_for(self._exchange_entities_inited.wait(), timeout)
 
     async def init_exchange_entities(self) -> None:
-        await self.transport_factory.init_exchange_entities(
+        await self.transport_factory.get_exchange_entities(
             self._on_init_exchange_entities_response
         )
-
-    async def auth_user(self, username: str, password: str) -> bool:
-        return True
 
     def get_exchange(self, tag: str) -> Exchange:
         return self._exchanges[tag]
@@ -53,54 +54,65 @@ class Terminal:
         callback: OnPriceCallable,
         consume_keys: Optional[List[DepthConsumeKey]] = None
     ) -> None:
-        await self.transport_factory.get_depth_scraping_consumer(
+        await self.transport_factory.consume_price_depth(
             lambda event: callback(*event),
             consume_keys
         )
 
-    async def _on_init_exchange_entities_response(
-        self,
-        data: MutableMapping[str, MutableMapping]
-    ) -> None:
+    async def _on_init_exchange_entities_response(self, data: MutableMapping[str, Mapping]) -> None:
         properties_to_fill = ('exchanges', 'markets', 'symbols', 'assets')
 
         for prop in properties_to_fill:
             if prop not in data:
-                # @TODO Stop the process on this exception
-                raise KeyError(f'init_exchange_entities data have not required key "{prop}"')
+                raise KeyError(f'Key "{prop}" is required')
 
             data[prop] = {k: v for k, v in data[prop].items() if not v['delete_time']}
 
-        for entity in data['assets'].values():
-            key = entity['tag']
-            if key in self._assets:
-                raise ValueError(f'Asset with tag "{key}" already exists')
+        all_assets_tags = [entity['tag'] for entity in data['assets'].values()]
+        duplicates = find_duplicates_in_list(all_assets_tags)
+        if len(duplicates):
+            raise ValueError(f"Assets with duplicates in tags found: {', '.join(duplicates)}")
 
-            self._assets[key] = Asset(self.transport_factory, **entity)
+        for entity in data['assets'].values():
+            self._assets[entity['tag']] = Asset(**entity)
 
         for id_, entity in data['symbols'].items():
-            if id_ in self._symbols:
-                raise ValueError(f'Symbol with id {id_} already exists')
+            if entity['base_asset_id'] not in data['assets']:
+                raise ValueError(
+                    f"No base asset with id {entity['base_asset_id']} "
+                    f"has been found for symbol with id {id_}"
+                )
+            if entity['quote_asset_id'] not in data['assets']:
+                raise ValueError(
+                    f"No quote asset with id {entity['quote_asset_id']} "
+                    f"has been found for symbol with id {id_}"
+                )
 
-            self._symbols[id_] = Symbol(self.transport_factory, **entity)
+            self._symbols[id_] = Symbol(**entity)
+
+        all_exchanges_tags = [entity['tag'] for entity in data['exchanges'].values()]
+        duplicates = find_duplicates_in_list(all_exchanges_tags)
+        if len(duplicates):
+            raise ValueError(f"Exchanges with duplicates in tags found: {', '.join(duplicates)}")
 
         exchanges_ids_map = {}
         for entity in data['exchanges'].values():
-            key = entity['tag']
-            if key in self._exchanges:
-                raise ValueError(f'Exchange with tag "{key}" already exists')
-
-            exchange = Exchange(self.transport_factory, **entity)
-            self._exchanges[key] = exchange
+            exchange = Exchange(**entity)
+            self._exchanges[entity['tag']] = exchange
             exchanges_ids_map[entity['id']] = exchange
 
         for entity in data['markets'].values():
-            key = entity['exchange_id']
-            if key not in exchanges_ids_map:
+            if entity['exchange_id'] not in exchanges_ids_map:
                 raise ValueError(
-                    f'No exchange with id {key} has been found for market with id {entity["id"]}'
+                    f"No exchange with id {entity['exchange_id']} "
+                    f"has been found for market with id {entity['id']}"
+                )
+            if entity['symbol_id'] not in data['symbols']:
+                raise ValueError(
+                    f"No symbol with id {entity['symbol_id']} "
+                    f"has been found for market with id {entity['id']}"
                 )
 
-            exchanges_ids_map[key].add_market(Market(self.transport_factory, **entity))
+            exchanges_ids_map[entity['exchange_id']].add_market(Market(**entity))
 
         self._exchange_entities_inited.set()

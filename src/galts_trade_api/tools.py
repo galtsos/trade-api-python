@@ -1,8 +1,15 @@
 import pickle
-from typing import Dict, Tuple
+from typing import Dict, Sequence, Set, Tuple
 
 
 class Singleton(type):
+    """
+    Requirement to return an old object are determined by calculating hash of a constructor call
+    arguments. One issue with this logic is that if the constructor in second time was called
+    with keyword-style of some arguments, the logic will fail if it was called with only
+    position-style of the same arguments. In this situation a new object will be created.
+    """
+
     _instances = {}
     _hash_args = []
     _hash_kwargs = {}
@@ -31,3 +38,7 @@ class Singleton(type):
         result = hash(pickle.dumps(hash_source, protocol=pickle.HIGHEST_PROTOCOL))
 
         return result
+
+
+def find_duplicates_in_list(source_list: Sequence) -> Set:
+    return set([tag for tag in source_list if source_list.count(tag) > 1])

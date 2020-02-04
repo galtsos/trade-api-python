@@ -2,7 +2,7 @@ import asyncio
 import os
 import signal
 from functools import partial
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
+from typing import AbstractSet, Any, Awaitable, Callable, Dict, List, Optional
 
 from .structlogger import get_logger
 
@@ -22,7 +22,7 @@ async def shutdown(loop: asyncio.AbstractEventLoop) -> None:
     logger.info(f'Shutting down', process_id=os.getpid())
 
     other_tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
-    logger.debug('Cancelling outstanding tasks', process_id=os.getpid(), amount=len(other_tasks))
+    logger.debug('Cancelling outstanding tasks', process_id=os.getpid(), count=len(other_tasks))
     await _cancel_tasks(loop, other_tasks)
 
     loop.stop()
@@ -54,7 +54,7 @@ def run_program_forever(
     target: Callable[..., Awaitable],
     loop: Optional[asyncio.AbstractEventLoop] = None,
     loop_debug: Optional[bool] = None,
-    handle_signals: Optional[Sequence[signal.Signals]] = None
+    handle_signals: Optional[AbstractSet[signal.Signals]] = None
 ) -> None:
     """
     Args:
