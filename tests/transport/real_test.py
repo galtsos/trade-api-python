@@ -286,13 +286,19 @@ class TestRealTransportFactory:
             'galts_trade_api.transport.real.PipeResponseRouter',
             autospec=True
         )
+        is_called = Event()
 
-        async def start(): await asyncio.sleep(1)
+        async def start():
+            is_called.set()
+            await asyncio.sleep(1)
 
         router_cls.return_value.start.return_value = start()
 
         factory = self._get_factory_instance(process_ready_timeout=0.1)
         await factory.init()
+
+        # Pass a loop iteration to execute the start and the done callback
+        await asyncio.sleep(0.001)
 
         cancel_other_async_tasks()
 
@@ -300,6 +306,7 @@ class TestRealTransportFactory:
         await asyncio.sleep(0.001)
 
         factory_shutdown.assert_called_once()
+        assert is_called.is_set()
 
     @pytest.mark.asyncio
     async def test_init_set_done_callback_for_router_task_which_shutdown_on_exception(
@@ -316,25 +323,32 @@ class TestRealTransportFactory:
             'galts_trade_api.transport.real.PipeResponseRouter',
             autospec=True
         )
+        handler_is_called = Event()
+        start_is_called = Event()
 
         expected_exception = RuntimeError('Halt router')
 
         def on_exception(_: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+            handler_is_called.set()
             assert context['exception'] is expected_exception
 
         asyncio.get_running_loop().set_exception_handler(on_exception)
 
-        async def start(): raise expected_exception
+        async def start():
+            start_is_called.set()
+            raise expected_exception
 
         router_cls.return_value.start.return_value = start()
 
         factory = self._get_factory_instance(process_ready_timeout=0.1)
         await factory.init()
 
-        # Pass a loop iteration to execute the done callback
+        # Pass a loop iteration to execute the start and the done callback
         await asyncio.sleep(0.001)
 
         factory_shutdown.assert_called_once()
+        assert start_is_called.is_set()
+        assert handler_is_called.is_set()
 
     @pytest.mark.asyncio
     async def test_shutdown_calls_process(self, mocker: MockFixture):
@@ -376,8 +390,11 @@ class TestRealTransportFactory:
             autospec=True
         )
         process_cls.side_effect = self._factory_process_constructor_which_set_event(process_cls)
+        is_called = Event()
 
-        async def cb(data): assert data == expected_response
+        async def cb(data):
+            is_called.set()
+            assert data == expected_response
 
         factory = self._get_factory_instance(**factory_args)
         await factory.init()
@@ -385,6 +402,7 @@ class TestRealTransportFactory:
         await consumer.send(expected_response)
 
         parent_connection_mock.send.assert_called_once_with(expected_request)
+        assert is_called.is_set()
 
         cancel_other_async_tasks()
 
