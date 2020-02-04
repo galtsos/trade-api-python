@@ -104,8 +104,8 @@ def fixture_get_entities_failed():
 class TestSymbolClient:
     @staticmethod
     def test_client_init(grpc_channel: grpc_testing.Channel):
-        patch_taget = 'galts_trade_api.transport.exchange_info_client.correct_timeout'
-        with mock.patch(patch_taget) as correct_timeout_mock:
+        patch_target = 'galts_trade_api.transport.exchange_info_client.correct_timeout'
+        with mock.patch(patch_target) as correct_timeout_mock:
             correct_timeout_mock.return_value = 1
 
             client = ExchangeInfoClient(grpc_channel, timeout_get_entities=1)
@@ -115,8 +115,8 @@ class TestSymbolClient:
 
     @staticmethod
     def test_factory():
-        patch_taget = 'galts_trade_api.transport.exchange_info_client.correct_timeout'
-        with mock.patch(patch_taget) as correct_timeout_mock:
+        patch_target = 'galts_trade_api.transport.exchange_info_client.correct_timeout'
+        with mock.patch(patch_target) as correct_timeout_mock:
             correct_timeout_mock.return_value = 1
 
             client = ExchangeInfoClient.factory('DSN', timeout_get_entities=1)
