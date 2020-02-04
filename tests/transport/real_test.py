@@ -292,7 +292,7 @@ class TestRealTransportFactory:
             is_called.set()
             await asyncio.sleep(1)
 
-        router_cls.return_value.start.return_value = start()
+        router_cls.return_value.start = start
 
         factory = self._get_factory_instance(process_ready_timeout=0.1)
         await factory.init()
@@ -338,7 +338,7 @@ class TestRealTransportFactory:
             start_is_called.set()
             raise expected_exception
 
-        router_cls.return_value.start.return_value = start()
+        router_cls.return_value.start = start
 
         factory = self._get_factory_instance(process_ready_timeout=0.1)
         await factory.init()
