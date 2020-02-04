@@ -67,7 +67,7 @@ class TestSymbol:
         'prop, arg_value, expected_value',
         fixture_symbol_constructor_cast_properties()
     )
-    def test_constructor_cast_properties(self, prop: str, arg_value, expected_value):
+    def test_constructor_cast_properties(self, prop: str, arg_value: Any, expected_value: Any):
         instance = self._factory_symbol(**{prop: arg_value})
 
         assert getattr(instance, prop) == expected_value
