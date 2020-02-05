@@ -34,7 +34,7 @@ def fixture_foo():
 class TestSingleton:
     @staticmethod
     @pytest.mark.parametrize('inst1, inst2, should_be_same', fixture_foo())
-    def test_instances_same(inst1, inst2, should_be_same):
+    def test_instances_same(inst1: object, inst2: object, should_be_same: bool):
         if should_be_same:
             assert inst1 is inst2
         else:

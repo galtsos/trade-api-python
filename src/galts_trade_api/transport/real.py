@@ -89,9 +89,9 @@ class RabbitConsumer:
         self._exchange = await self.channel.declare_exchange(self._exchange_name, passive=True)
         self._queue = await self.channel.declare_queue(exclusive=True)
 
-        await self._queue.consume(self._on_message, no_ack=True)
+        await self.queue.consume(self._on_message, no_ack=True)
 
-        return self._queue
+        return self.queue
 
 
 class RealTransportFactory(TransportFactory):
@@ -109,8 +109,7 @@ class RealTransportFactory(TransportFactory):
         self._parent_connection, self._child_connection = Pipe()
         self._response_router: Optional[PipeResponseRouter] = None
 
-        def sanity_string(value: str) -> str:
-            return str(value).strip()
+        def sanity_string(value: str) -> str: return str(value).strip()
 
         self._exchange_info_dsn = sanity_string(exchange_info_dsn)
         self._exchange_info_get_entities_timeout = float(exchange_info_get_entities_timeout)

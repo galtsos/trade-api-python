@@ -98,7 +98,7 @@ def fixture_grpc_error_status_codes(*args) -> Generator:
         yield (status_code, *args)
 
 
-def cancel_other_tasks():
+def cancel_other_async_tasks() -> None:
     """For async loop clean-up purposes"""
     for t in asyncio.all_tasks():
         if t is not asyncio.current_task():

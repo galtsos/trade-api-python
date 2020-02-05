@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Dict, Tuple, Type
+from typing import Any, Dict, Optional, Tuple, Type
 from unittest import mock
 from unittest.mock import call
 
@@ -104,8 +104,8 @@ def fixture_get_entities_failed():
 class TestSymbolClient:
     @staticmethod
     def test_client_init(grpc_channel: grpc_testing.Channel):
-        patch_taget = 'galts_trade_api.transport.exchange_info_client.correct_timeout'
-        with mock.patch(patch_taget) as correct_timeout_mock:
+        patch_target = 'galts_trade_api.transport.exchange_info_client.correct_timeout'
+        with mock.patch(patch_target) as correct_timeout_mock:
             correct_timeout_mock.return_value = 1
 
             client = ExchangeInfoClient(grpc_channel, timeout_get_entities=1)
@@ -115,8 +115,8 @@ class TestSymbolClient:
 
     @staticmethod
     def test_factory():
-        patch_taget = 'galts_trade_api.transport.exchange_info_client.correct_timeout'
-        with mock.patch(patch_taget) as correct_timeout_mock:
+        patch_target = 'galts_trade_api.transport.exchange_info_client.correct_timeout'
+        with mock.patch(patch_target) as correct_timeout_mock:
             correct_timeout_mock.return_value = 1
 
             client = ExchangeInfoClient.factory('DSN', timeout_get_entities=1)
@@ -130,9 +130,9 @@ class TestSymbolClient:
         fixture_incorrect_factory_dsn()
     )
     def test_incorrect_factory_dsn(
-        incorrect_dsn: str,
+        incorrect_dsn: Any,
         exception_expected: Type[Exception],
-        exception_text: str
+        exception_text: Optional[str]
     ):
         with pytest.raises(exception_expected, match=exception_text):
             ExchangeInfoClient.factory(incorrect_dsn)
@@ -192,8 +192,7 @@ class TestSymbolClient:
     ):
         client = ExchangeInfoClient(grpc_channel, timeout_get_entities=1)
 
-        def sut() -> None:
-            client.get_entities(*method_inputs)
+        def sut() -> None: client.get_entities(*method_inputs)
 
         with pytest.raises(grpc.RpcError) as exc_info:
             with thread_with_timeout(sut):

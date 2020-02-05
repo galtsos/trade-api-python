@@ -1,16 +1,18 @@
 import asyncio
 import signal
 from asyncio import Event
-from unittest.mock import ANY, Mock
+from typing import AbstractSet, Optional, Callable, Any
+from unittest.mock import ANY, Mock, sentinel
 
 import pytest
+from pytest_mock import MockFixture
 
 from galts_trade_api.asyncio_helper import AsyncProgramEnv, run_program_forever, shutdown, \
     signal_handler
 from .utils import AsyncMock
 
 
-def test_signal_handler_log_and_shutdown(mocker):
+def test_signal_handler_log_and_shutdown(mocker: MockFixture):
     logger_mock = mocker.patch('galts_trade_api.asyncio_helper.logger')
     shutdown_mock = mocker.patch('galts_trade_api.asyncio_helper.shutdown')
     loop = Mock(spec_set=asyncio.AbstractEventLoop)
@@ -28,7 +30,7 @@ def test_signal_handler_log_and_shutdown(mocker):
 
 class TestShutdown:
     @pytest.mark.asyncio
-    async def test_log_and_stop_loop(self, mocker):
+    async def test_log_and_stop_loop(self, mocker: MockFixture):
         logger_mock = mocker.patch('galts_trade_api.asyncio_helper.logger')
         loop = Mock(spec_set=asyncio.AbstractEventLoop)
 
@@ -43,7 +45,7 @@ class TestShutdown:
         )
 
     @pytest.mark.asyncio
-    async def test_cancel_tasks(self, mocker):
+    async def test_cancel_tasks(self, mocker: MockFixture):
         logger_mock = mocker.patch('galts_trade_api.asyncio_helper.logger')
         loop = Mock(spec_set=asyncio.AbstractEventLoop)
         current_task_mock = mocker.patch('asyncio.current_task', autospec=True)
@@ -86,17 +88,20 @@ def fixture_setup_loop_by_arguments():
 
 
 class TestRunProgramForever:
-    @pytest.mark.parametrize(
-        'loop_debug, handle_signals',
-        fixture_setup_loop_by_arguments()
-    )
-    def test_setup_loop_by_arguments(self, mocker, loop_debug, handle_signals):
+    @pytest.mark.parametrize('loop_debug, handle_signals', fixture_setup_loop_by_arguments())
+    def test_setup_loop_by_arguments(
+        self,
+        mocker: MockFixture,
+        loop_debug: bool,
+        handle_signals: AbstractSet[signal.Signals]
+    ):
         logger_mock = mocker.patch('galts_trade_api.asyncio_helper.logger')
         env_mock = mocker.patch('galts_trade_api.asyncio_helper.AsyncProgramEnv')
         loop = Mock(spec_set=asyncio.AbstractEventLoop)
 
-        def program(env):
+        def program(env) -> object:
             assert env is env_mock()
+            return sentinel.a_program_result
 
         run_program_forever(program, loop, loop_debug, handle_signals)
 
@@ -106,11 +111,11 @@ class TestRunProgramForever:
             loop.add_signal_handler.assert_any_call(sig, ANY)
 
         loop.set_exception_handler.assert_called_once_with(env_mock().exception_handler)
-        loop.create_task.assert_called_once_with(program(env_mock()))
+        loop.create_task.assert_called_once_with(sentinel.a_program_result)
         loop.run_forever.assert_called_once_with()
         logger_mock.info.assert_called_once_with('Successfully shutdown', process_id=ANY)
 
-    def test_setup_loop_by_defaults(self, mocker):
+    def test_setup_loop_by_defaults(self, mocker: MockFixture):
         mocker.patch('galts_trade_api.asyncio_helper.AsyncProgramEnv')
         new_event_loop_mock = mocker.patch('asyncio.new_event_loop', autospec=True)
 
@@ -143,7 +148,7 @@ class TestAsyncProgramEnv:
         assert env.exception_handler_patch is None
 
     @pytest.mark.parametrize('value', fixture_exception_handler_patch_success())
-    def test_exception_handler_patch_success(self, value):
+    def test_exception_handler_patch_success(self, value: Optional[Callable]):
         env = AsyncProgramEnv()
 
         env.exception_handler_patch = value
@@ -151,14 +156,14 @@ class TestAsyncProgramEnv:
         assert env.exception_handler_patch is value
 
     @pytest.mark.parametrize('value', fixture_exception_handler_patch_exception_for_wrong_type())
-    def test_exception_handler_patch_exception_for_wrong_type(self, value):
+    def test_exception_handler_patch_exception_for_wrong_type(self, value: Any):
         env = AsyncProgramEnv()
 
         with pytest.raises(TypeError, match='should be a callable or None'):
             env.exception_handler_patch = value
 
     @pytest.mark.asyncio
-    async def test_exception_handler_log_and_shutdown(self, mocker):
+    async def test_exception_handler_log_and_shutdown(self, mocker: MockFixture):
         logger_mock = mocker.patch('galts_trade_api.asyncio_helper.logger')
         shutdown_mock = mocker.patch(
             'galts_trade_api.asyncio_helper.shutdown',
@@ -177,7 +182,7 @@ class TestAsyncProgramEnv:
         logger_mock.info.assert_called_once_with('Caught exception', process_id=ANY)
 
     @pytest.mark.asyncio
-    async def test_exception_handler_call_patch(self, mocker):
+    async def test_exception_handler_call_patch(self, mocker: MockFixture):
         mocker.patch('galts_trade_api.asyncio_helper.shutdown')
         is_called = Event()
 

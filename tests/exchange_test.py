@@ -1,5 +1,5 @@
 import datetime
-from typing import Optional
+from typing import Any, Optional
 
 import pytest
 
@@ -31,7 +31,7 @@ class TestExchange:
         'prop, arg_value, expected_value',
         fixture_exchange_constructor_cast_properties()
     )
-    def test_constructor_cast_properties(self, prop: str, arg_value, expected_value):
+    def test_constructor_cast_properties(self, prop: str, arg_value: Any, expected_value: Any):
         instance = self._factory_exchange(**{prop: arg_value})
 
         assert getattr(instance, prop) == expected_value
@@ -91,7 +91,7 @@ class TestMarket:
         'prop, arg_value, expected_value',
         fixture_market_constructor_cast_properties()
     )
-    def test_constructor_cast_properties(self, prop: str, arg_value, expected_value):
+    def test_constructor_cast_properties(self, prop: str, arg_value: Any, expected_value: Any):
         instance = factory_market(**{prop: arg_value})
 
         assert getattr(instance, prop) == expected_value

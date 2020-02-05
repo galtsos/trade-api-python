@@ -1,8 +1,10 @@
 import asyncio
+from asyncio import Event
 from typing import Awaitable, Callable, List, Mapping, Optional, Sequence
 from unittest.mock import ANY, Mock, call
 
 import pytest
+from pytest_mock import MockFixture
 
 from galts_trade_api.terminal import Terminal
 from galts_trade_api.transport import DepthConsumeKey, MessageConsumerCollection, TransportFactory
@@ -66,7 +68,7 @@ def fixture_init_exchange_entities_exception_on_data_inconsistency():
                 'delete_time': None,
             },
             2: {
-                'id': 1,
+                'id': 2,
                 'tag': 'asset-b',
                 'name': 'Asset B',
                 'precision': 2,
@@ -276,7 +278,7 @@ class TestTerminal:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize('loop_debug', fixture_init_transport_calls_factory())
-    async def test_init_transport_calls_factory(self, loop_debug):
+    async def test_init_transport_calls_factory(self, loop_debug: bool):
         factory = AsyncMock(spec_set=TransportFactory)
         terminal = Terminal(factory)
         await terminal.init_transport(loop_debug)
@@ -358,7 +360,7 @@ class TestTerminal:
     )
     async def test_init_exchange_entities_ignore_deleted_entities(
         self,
-        mocker,
+        mocker: MockFixture,
         entity_class_name: str,
         data: Mapping,
         expected_call: Sequence,
@@ -425,16 +427,19 @@ class TestTerminal:
 
     @pytest.mark.asyncio
     async def test_subscribe_to_prices(self):
+        is_called = Event()
         data = ('foo', {'bar': 100500})
         factory_fake = FakeTransportFactory()
         factory_fake.consume_price_depth_data = data
 
         async def cb(*args):
             assert args == data
+            is_called.set()
 
         terminal = Terminal(factory_fake)
         keys = []
         await terminal.subscribe_to_prices(cb, keys)
+        assert is_called.is_set()
 
 
 class FakeTransportFactory(TransportFactory):
