@@ -57,13 +57,15 @@ class TestExchange:
         with pytest.raises(ValueError, match=exception_msg):
             exchange.add_market(market2)
 
-    def test_markets_by_tag(self):
+    def test_add_market_success(self):
+        id_ = 2
         market_tag = 'market-tag'
         exchange = self._factory_exchange()
-        market = factory_market(custom_tag=market_tag)
+        market = factory_market(id=id_, custom_tag=market_tag)
 
         exchange.add_market(market)
 
+        assert exchange.markets_by_id[id_] is market
         assert exchange.markets_by_tag[market_tag] is market
 
     @classmethod
