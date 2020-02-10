@@ -50,7 +50,6 @@ class Exchange:
 
     @property
     def markets_by_id(self):
-        # @TODO Cover
         return self._markets_by_id
 
     @property

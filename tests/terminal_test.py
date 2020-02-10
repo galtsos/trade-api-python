@@ -88,6 +88,44 @@ def fixture_init_exchange_entities_exception_on_data_inconsistency():
 
     yield {
         **empty_data,
+        'assets': {
+            1: {
+                'id': 1,
+                'tag': 'ASS1',
+                'name': 'Asset A',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+            2: {
+                'id': 2,
+                'tag': 'ASS2',
+                'name': 'Asset B',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+        'symbols': {
+            1: {
+                'id': 1,
+                'base_asset_id': 1,
+                'quote_asset_id': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+            2: {
+                'id': 1,
+                'base_asset_id': 1,
+                'quote_asset_id': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+    }, 'Symbols with duplicates in tags found: ASS1ASS2'
+
+    yield {
+        **empty_data,
         'exchanges': {
             1: {
                 'id': 1,
@@ -225,7 +263,7 @@ class TestTerminal:
     async def test_auth_user(self):
         pass
 
-    def test_is_exchange_entities_inited_after_instantiation(self):
+    def test_is_exchange_entities_not_inited_after_instantiation(self):
         factory = Mock(spec_set=TransportFactory)
         terminal = Terminal(factory)
 
@@ -320,29 +358,93 @@ class TestTerminal:
         await terminal.wait_exchange_entities_inited(0.001)
 
     @pytest.mark.asyncio
-    async def test_get_exchange_returns_inited_data(self):
-        exchange_tag = 'exchange-a'
+    async def test_getters_return_inited_data(self):
         factory_fake = FakeTransportFactory()
         terminal = Terminal(factory_fake)
 
-        with pytest.raises(KeyError):
-            e = terminal.exchanges_by_tag[exchange_tag]
+        getters = [
+            terminal.assets_by_id,
+            terminal.assets_by_tag,
+            terminal.symbols_by_id,
+            terminal.symbols_by_tag,
+            terminal.exchanges_by_id,
+            terminal.exchanges_by_tag,
+        ]
 
-        data = {'exchanges': {}, 'markets': {}, 'symbols': {}, 'assets': {}}
-        data['exchanges'][1] = {
-            'id': 1,
-            'tag': exchange_tag,
-            'name': 'Exchange',
-            'create_time': None,
-            'delete_time': None,
-            'disable_time': None,
+        for getter in getters:
+            assert len(getter) == 0, 'Getter should be empty before init_exchange_entities() call'
+
+            with pytest.raises(KeyError):
+                _ = getter[1]
+
+        data = {
+            'assets': {
+                1: {
+                    'id': 1,
+                    'tag': 'AS1',
+                    'name': 'Asset A',
+                    'precision': 2,
+                    'create_time': None,
+                    'delete_time': None,
+                },
+                2: {
+                    'id': 2,
+                    'tag': 'AS2',
+                    'name': 'Asset B',
+                    'precision': 2,
+                    'create_time': None,
+                    'delete_time': None,
+                },
+            },
+            'symbols': {
+                1: {
+                    'id': 1,
+                    'base_asset_id': 1,
+                    'quote_asset_id': 2,
+                    'create_time': None,
+                    'delete_time': None,
+                },
+            },
+            'exchanges': {
+                1: {
+                    'id': 1,
+                    'tag': 'exchange-a',
+                    'name': 'Exchange',
+                    'create_time': None,
+                    'delete_time': None,
+                    'disable_time': None,
+                },
+            },
+            'markets': {
+                1: {
+                    'id': 1,
+                    'custom_tag': 'market-a',
+                    'exchange_id': 1,
+                    'symbol_id': 1,
+                    'trade_endpoint': 'test.local',
+                    'create_time': None,
+                    'delete_time': None,
+                },
+            },
         }
         factory_fake.get_exchange_entities_data = data
 
         await terminal.init_exchange_entities()
 
-        exchange = terminal.exchanges_by_tag[exchange_tag]
+        assert terminal.assets_by_id[1].id == 1
+        assert terminal.assets_by_tag['AS1'] is terminal.assets_by_id[1]
+        assert terminal.assets_by_id[2].id == 2
+        assert terminal.assets_by_tag['AS2'] is terminal.assets_by_id[2]
+
+        assert terminal.symbols_by_id[1].id == 1
+        assert terminal.symbols_by_tag['AS1AS2'] is terminal.symbols_by_id[1]
+
+        exchange = terminal.exchanges_by_id[1]
         assert exchange.id == 1
+        assert terminal.exchanges_by_tag['exchange-a'] is exchange
+
+        assert exchange.markets_by_id[1].id == 1
+        assert exchange.markets_by_tag['market-a'] is exchange.markets_by_id[1]
 
     @pytest.mark.asyncio
     async def test_subscribe_to_prices_calls_factory(self):

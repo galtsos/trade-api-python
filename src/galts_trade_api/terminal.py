@@ -15,13 +15,10 @@ class Terminal:
     def __init__(self, transport: TransportFactory):
         self._transport_factory: TransportFactory = transport
         self._exchange_entities_inited = Event()
-        # @TODO Cover
         self._assets_by_id: Dict[int, Asset] = {}
         self._assets_by_tag: Dict[str, Asset] = {}
         self._symbols_by_id: Dict[int, Symbol] = {}
-        # @TODO Cover
         self._symbols_by_tag: Dict[str, Symbol] = {}
-        # @TODO Cover
         self._exchanges_by_id: Dict[int, Exchange] = {}
         self._exchanges_by_tag: Dict[str, Exchange] = {}
 
@@ -121,14 +118,12 @@ class Terminal:
             symbol = Symbol(**entity)
             base_asset = self._assets_by_id[symbol.base_asset_id]
             quote_asset = self._assets_by_id[symbol.quote_asset_id]
-            tag = f'{base_asset.tag}{quote_asset.tag}'
+            tag = Symbol.form_tag(base_asset.tag, quote_asset.tag)
 
             if tag in self._symbols_by_tag:
-                raise ValueError(
-                    f'Symbols tags should be unique among all entities, duplicate: {tag}'
-                )
+                raise ValueError(f'Symbols with duplicates in tags found: {tag}')
 
-            self._symbols_by_id[id_] = symbol
+            self._symbols_by_id[entity['id']] = symbol
             self._symbols_by_tag[tag] = symbol
 
         all_exchanges_tags = [entity['tag'] for entity in data['exchanges'].values()]

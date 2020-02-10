@@ -45,6 +45,11 @@ class Asset:
 
 
 class Symbol:
+    # @TODO Cover
+    @classmethod
+    def form_tag(cls, base_asset_tag: str, quote_asset_tag: str) -> str:
+        return f'{base_asset_tag}{quote_asset_tag}'
+
     def __init__(
         self,
         id: int,
