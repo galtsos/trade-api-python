@@ -1,9 +1,8 @@
 import datetime
-from typing import Sequence
 
 from galts_trade_api.asyncio_helper import AsyncProgramEnv, run_program_forever
 from galts_trade_api.structlogger import get_logger
-from galts_trade_api.terminal import DepthConsumeKey, Terminal
+from galts_trade_api.terminal import DepthConsumeKey, PriceDepth, Terminal
 from galts_trade_api.transport.real import RealTransportFactory
 
 logger = get_logger('ts')
@@ -46,12 +45,12 @@ async def on_price(
     market_tag: str,
     symbol_tag: str,
     time: datetime.datetime,
-    bids: Sequence,
-    asks: Sequence
+    bids: PriceDepth,
+    asks: PriceDepth
 ) -> None:
     logger.info(
         'on_price',
-        time=time,
+        time=str(time),
         exchange_tag=exchange_tag,
         market_tag=market_tag,
         symbol_tag=symbol_tag,

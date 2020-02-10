@@ -1,14 +1,19 @@
 import datetime
 from asyncio import Event, wait_for
-from typing import Awaitable, Callable, Dict, List, Mapping, MutableMapping, Optional
+from decimal import Decimal
+from typing import Awaitable, Callable, Dict, List, Mapping, MutableMapping, Optional, Tuple, Union
 
 from .asset import Asset, Symbol
 from .exchange import Exchange, Market
 from .tools import find_duplicates_in_list
 from .transport import DepthConsumeKey, TransportFactory
 
-# @TODO Refactor last elements
-OnPriceCallable = Callable[[str, str, str, datetime.datetime, List, List], Awaitable]
+PriceLevelWithoutFee = Tuple[Decimal, Decimal]
+PriceLevelWithFee = Tuple[Decimal, Decimal, Optional[Decimal]]
+PriceLevel = Union[PriceLevelWithoutFee, PriceLevelWithFee]
+PriceDepth = List[PriceLevel]
+
+OnPriceCallable = Callable[[str, str, str, datetime.datetime, PriceDepth, PriceDepth], Awaitable]
 
 
 class Terminal:
