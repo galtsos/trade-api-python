@@ -1,5 +1,6 @@
 import asyncio
 from asyncio import Event
+from datetime import datetime
 from typing import Awaitable, Callable, List, Mapping, Optional, Sequence
 from unittest.mock import ANY, Mock
 
@@ -139,59 +140,21 @@ def fixture_init_exchange_entities_exception_on_data_inconsistency():
 
 
 def fixture_init_exchange_entities_ignore_deleted_entities():
-    empty_data = {'assets': {}, 'symbols': {}, 'exchanges': {}, 'markets': {}}
-
     asset = {
         'id': 1,
-        'tag': 'asset-1',
-        'name': 'Asset',
+        'tag': 'asset-a',
+        'name': 'Asset A',
         'precision': 2,
         'create_time': None,
         'delete_time': None,
     }
-
-    yield {
-        **empty_data,
-        'assets': {
-            1: asset,
-            2: {**asset, **{'id': 2, 'tag': 'asset-2', 'delete_time': True}},
-        },
-    }, [1], [], [], []
-
     symbol = {
         'id': 1,
-        'base_asset_id': 3,
-        'quote_asset_id': 4,
+        'base_asset_id': 1,
+        'quote_asset_id': 2,
         'create_time': None,
         'delete_time': None,
     }
-
-    yield {
-        **empty_data,
-        'assets': {
-            3: {
-                'id': 3,
-                'tag': 'asset-a',
-                'name': 'Asset A',
-                'precision': 2,
-                'create_time': None,
-                'delete_time': None,
-            },
-            4: {
-                'id': 4,
-                'tag': 'asset-b',
-                'name': 'Asset B',
-                'precision': 2,
-                'create_time': None,
-                'delete_time': None,
-            },
-        },
-        'symbols': {
-            1: symbol,
-            2: {**symbol, **{'id': 2, 'delete_time': True}},
-        },
-    }, [3, 4], [1], [], []
-
     exchange = {
         'id': 1,
         'tag': 'exchange-a',
@@ -200,69 +163,35 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
         'delete_time': None,
         'disable_time': None,
     }
-
-    yield {
-        **empty_data,
-        'exchanges': {
-            1: exchange,
-            2: {**exchange, **{'id': 2, 'delete_time': True}},
-        },
-    }, [], [], [1], []
-
     market = {
         'id': 1,
         'custom_tag': 'tag-a',
         'exchange_id': 1,
-        'symbol_id': 6,
+        'symbol_id': 1,
         'trade_endpoint': 'test.local',
         'create_time': None,
         'delete_time': None,
     }
 
     yield {
-        **empty_data,
         'assets': {
-            3: {
-                'id': 3,
-                'tag': 'asset-a',
-                'name': 'Asset A',
-                'precision': 2,
-                'create_time': None,
-                'delete_time': None,
-            },
-            4: {
-                'id': 4,
-                'tag': 'asset-b',
-                'name': 'Asset B',
-                'precision': 2,
-                'create_time': None,
-                'delete_time': None,
-            },
+            1: asset,
+            2: {**asset, **{'id': 2, 'tag': 'asset-b', }},
+            5: {**asset, **{'id': 5, 'delete_time': True}},
         },
         'symbols': {
-            6: {
-                'id': 6,
-                'base_asset_id': 3,
-                'quote_asset_id': 4,
-                'create_time': None,
-                'delete_time': None,
-            },
+            1: symbol,
+            6: {**symbol, **{'id': 6, 'delete_time': datetime.utcnow()}},
         },
         'exchanges': {
-            1: {
-                'id': 1,
-                'tag': 'exchange-a',
-                'name': 'Exchange A',
-                'create_time': None,
-                'delete_time': None,
-                'disable_time': None,
-            },
+            1: exchange,
+            3: {**exchange, **{'id': 3, 'tag': 'exchange-b', 'delete_time': datetime.utcnow()}},
         },
         'markets': {
             1: market,
-            2: {**market, **{'id': 2, 'delete_time': True}},
+            2: {**market, **{'id': 2, 'custom_tag': 'tag-b', 'delete_time': True}},
         },
-    }, [3, 4], [6], [1], [1]
+    }, [1, 2], [1], [1], [1]
 
 
 class TestTerminal:
