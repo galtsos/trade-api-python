@@ -1,10 +1,9 @@
 import asyncio
 from asyncio import Event
 from typing import Awaitable, Callable, List, Mapping, Optional, Sequence
-from unittest.mock import ANY, Mock, call
+from unittest.mock import ANY, Mock
 
 import pytest
-from pytest_mock import MockFixture
 
 from galts_trade_api.terminal import Terminal
 from galts_trade_api.transport import DepthConsumeKey, MessageConsumerCollection, TransportFactory
@@ -140,24 +139,24 @@ def fixture_init_exchange_entities_exception_on_data_inconsistency():
 
 
 def fixture_init_exchange_entities_ignore_deleted_entities():
-    empty_data = {'exchanges': {}, 'markets': {}, 'symbols': {}, 'assets': {}}
+    empty_data = {'assets': {}, 'symbols': {}, 'exchanges': {}, 'markets': {}}
 
     asset = {
         'id': 1,
-        'tag': 'asset-a',
-        'name': 'Asset A',
+        'tag': 'asset-1',
+        'name': 'Asset',
         'precision': 2,
         'create_time': None,
         'delete_time': None,
     }
 
-    yield 'Asset', {
+    yield {
         **empty_data,
         'assets': {
             1: asset,
-            2: {**asset, **{'id': 2, 'delete_time': True}},
+            2: {**asset, **{'id': 2, 'tag': 'asset-2', 'delete_time': True}},
         },
-    }, call(**asset)
+    }, [1], [], [], []
 
     symbol = {
         'id': 1,
@@ -167,7 +166,7 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
         'delete_time': None,
     }
 
-    yield 'Symbol', {
+    yield {
         **empty_data,
         'assets': {
             3: {
@@ -191,7 +190,7 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
             1: symbol,
             2: {**symbol, **{'id': 2, 'delete_time': True}},
         },
-    }, call(**symbol)
+    }, [3, 4], [1], [], []
 
     exchange = {
         'id': 1,
@@ -202,25 +201,25 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
         'disable_time': None,
     }
 
-    yield 'Exchange', {
+    yield {
         **empty_data,
         'exchanges': {
             1: exchange,
             2: {**exchange, **{'id': 2, 'delete_time': True}},
         },
-    }, call(**exchange)
+    }, [], [], [1], []
 
     market = {
         'id': 1,
         'custom_tag': 'tag-a',
-        'exchange_id': 5,
+        'exchange_id': 1,
         'symbol_id': 6,
         'trade_endpoint': 'test.local',
         'create_time': None,
         'delete_time': None,
     }
 
-    yield 'Market', {
+    yield {
         **empty_data,
         'assets': {
             3: {
@@ -250,8 +249,8 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
             },
         },
         'exchanges': {
-            5: {
-                'id': 5,
+            1: {
+                'id': 1,
                 'tag': 'exchange-a',
                 'name': 'Exchange A',
                 'create_time': None,
@@ -263,7 +262,7 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
             1: market,
             2: {**market, **{'id': 2, 'delete_time': True}},
         },
-    }, call(**market)
+    }, [3, 4], [6], [1], [1]
 
 
 class TestTerminal:
@@ -355,28 +354,29 @@ class TestTerminal:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        'entity_class_name, data, expected_call',
+        'entities_data, expected_assets_ids, expected_symbols_ids, expected_exchanges_ids, '
+        'expected_markets_ids',
         fixture_init_exchange_entities_ignore_deleted_entities()
     )
     async def test_init_exchange_entities_ignore_deleted_entities(
         self,
-        mocker: MockFixture,
-        entity_class_name: str,
-        data: Mapping,
-        expected_call: Sequence,
+        entities_data: Mapping,
+        expected_assets_ids: Sequence[int],
+        expected_symbols_ids: Sequence[int],
+        expected_exchanges_ids: Sequence[int],
+        expected_markets_ids: Sequence[int]
     ):
-        entity_class_mock = mocker.patch(
-            f'galts_trade_api.terminal.{entity_class_name}',
-            autospec=True
-        )
-
         factory_fake = FakeTransportFactory()
-        factory_fake.get_exchange_entities_data = data
+        factory_fake.get_exchange_entities_data = entities_data
 
         terminal = Terminal(factory_fake)
         await terminal.init_exchange_entities()
 
-        assert entity_class_mock.call_args == expected_call
+        assert list(terminal.assets_by_id.keys()) == expected_assets_ids
+        assert list(terminal.symbols_by_id.keys()) == expected_symbols_ids
+        assert list(terminal.exchanges_by_id.keys()) == expected_exchanges_ids
+        if len(expected_markets_ids):
+            assert list(terminal.exchanges_by_id[1].markets_by_id.keys()) == expected_markets_ids
 
     @pytest.mark.asyncio
     async def test_init_exchange_entities_set_event(self):
