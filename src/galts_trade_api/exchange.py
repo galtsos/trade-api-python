@@ -57,7 +57,6 @@ class Exchange:
         return self._markets_by_tag
 
     def add_market(self, market: Market) -> None:
-        # @TODO Cover
         if market.id in self._markets_by_id:
             raise ValueError(f'Market with id {market.id} already exists in exchange {self.tag}')
         if market.custom_tag in self._markets_by_tag:
@@ -65,7 +64,6 @@ class Exchange:
                 f'Market with tag "{market.custom_tag}" already exists in exchange {self.tag}'
             )
 
-        # @TODO Cover
         self._markets_by_id[market.id] = market
         self._markets_by_tag[market.custom_tag] = market
 
