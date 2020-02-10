@@ -18,7 +18,9 @@ class Terminal:
         # @TODO Cover
         self._assets_by_id: Dict[int, Asset] = {}
         self._assets_by_tag: Dict[str, Asset] = {}
-        self._symbols: Dict[int, Symbol] = {}
+        self._symbols_by_id: Dict[int, Symbol] = {}
+        # @TODO Cover
+        self._symbols_by_tag: Dict[str, Symbol] = {}
         # @TODO Cover
         self._exchanges_by_id: Dict[int, Exchange] = {}
         self._exchanges_by_tag: Dict[str, Exchange] = {}
@@ -52,24 +54,28 @@ class Terminal:
         )
 
     @property
-    def assets_by_tag(self):
-        return self._assets_by_tag
-
-    @property
     def assets_by_id(self):
         return self._assets_by_id
 
     @property
-    def symbols_by_id(self):
-        return self._symbols
+    def assets_by_tag(self):
+        return self._assets_by_tag
 
     @property
-    def exchanges_by_tag(self):
-        return self._exchanges_by_tag
+    def symbols_by_id(self):
+        return self._symbols_by_id
+
+    @property
+    def symbols_by_tag(self):
+        return self._symbols_by_tag
 
     @property
     def exchanges_by_id(self):
         return self._exchanges_by_id
+
+    @property
+    def exchanges_by_tag(self):
+        return self._exchanges_by_tag
 
     async def subscribe_to_prices(
         self,
@@ -112,7 +118,18 @@ class Terminal:
                     f"has been found for symbol with id {id_}"
                 )
 
-            self._symbols[id_] = Symbol(**entity)
+            symbol = Symbol(**entity)
+            base_asset = self._assets_by_id[symbol.base_asset_id]
+            quote_asset = self._assets_by_id[symbol.quote_asset_id]
+            tag = f'{base_asset.tag}{quote_asset.tag}'
+
+            if tag in self._symbols_by_tag:
+                raise ValueError(
+                    f'Symbols tags should be unique among all entities, duplicate: {tag}'
+                )
+
+            self._symbols_by_id[id_] = symbol
+            self._symbols_by_tag[tag] = symbol
 
         all_exchanges_tags = [entity['tag'] for entity in data['exchanges'].values()]
         duplicates = find_duplicates_in_list(all_exchanges_tags)
