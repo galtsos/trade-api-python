@@ -33,26 +33,6 @@ class Terminal:
     def transport_factory(self, value):
         self._transport_factory = value
 
-    async def init_transport(self, loop_debug: Optional[bool] = None) -> None:
-        await self.transport_factory.init(loop_debug)
-
-    def shutdown_transport(self) -> None:
-        self.transport_factory.shutdown()
-
-    async def auth_user(self, username: str, password: str) -> bool:
-        return True
-
-    def is_exchange_entities_inited(self) -> bool:
-        return self._exchange_entities_inited.is_set()
-
-    async def wait_exchange_entities_inited(self, timeout: float = 5.0) -> None:
-        await wait_for(self._exchange_entities_inited.wait(), timeout)
-
-    async def init_exchange_entities(self) -> None:
-        await self.transport_factory.get_exchange_entities(
-            self._on_init_exchange_entities_response
-        )
-
     @property
     def assets_by_id(self):
         return self._assets_by_id
@@ -76,6 +56,26 @@ class Terminal:
     @property
     def exchanges_by_tag(self):
         return self._exchanges_by_tag
+
+    async def init_transport(self, loop_debug: Optional[bool] = None) -> None:
+        await self.transport_factory.init(loop_debug)
+
+    def shutdown_transport(self) -> None:
+        self.transport_factory.shutdown()
+
+    async def auth_user(self, username: str, password: str) -> bool:
+        return True
+
+    def is_exchange_entities_inited(self) -> bool:
+        return self._exchange_entities_inited.is_set()
+
+    async def wait_exchange_entities_inited(self, timeout: float = 5.0) -> None:
+        await wait_for(self._exchange_entities_inited.wait(), timeout)
+
+    async def init_exchange_entities(self) -> None:
+        await self.transport_factory.get_exchange_entities(
+            self._on_init_exchange_entities_response
+        )
 
     async def subscribe_to_prices(
         self,
