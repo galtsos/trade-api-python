@@ -106,16 +106,16 @@ class Terminal:
             self._assets_by_id[entity['id']] = asset
             self._assets_by_tag[entity['tag']] = asset
 
-        for id_, entity in data['symbols'].items():
+        for entity in data['symbols'].values():
             if entity['base_asset_id'] not in data['assets']:
                 raise ValueError(
                     f"No base asset with id {entity['base_asset_id']} "
-                    f"has been found for symbol with id {id_}"
+                    f"has been found for symbol with id {entity['id']}"
                 )
             if entity['quote_asset_id'] not in data['assets']:
                 raise ValueError(
                     f"No quote asset with id {entity['quote_asset_id']} "
-                    f"has been found for symbol with id {id_}"
+                    f"has been found for symbol with id {entity['id']}"
                 )
 
             symbol = Symbol(**entity)
