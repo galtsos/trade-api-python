@@ -63,6 +63,11 @@ def fixture_symbol_constructor_cast_properties():
 
 
 class TestSymbol:
+    def test_form_tag(self):
+        assert Symbol.form_tag('a', 'b') == 'ab'
+        assert Symbol.form_tag('A', 'B') == 'AB'
+        assert Symbol.form_tag('a1', 'a1') == 'a1a1'
+
     @pytest.mark.parametrize(
         'prop, arg_value, expected_value',
         fixture_symbol_constructor_cast_properties()
