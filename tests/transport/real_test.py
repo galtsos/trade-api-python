@@ -1,4 +1,7 @@
 import asyncio
+import datetime
+import json
+from decimal import Decimal
 from multiprocessing import Event, Pipe
 from multiprocessing.connection import Connection
 from typing import Any, AsyncGenerator, Callable, Dict, FrozenSet, Mapping, Sequence
@@ -462,6 +465,42 @@ def fixture_consume_price_depth():
         ['test1.*.*', 'test2.*.*']
 
 
+def fixture_consume_price_depth_parse_json():
+    exchange_tag = 'exchange-a'
+    market_tag = 'market-a'
+    symbol_tag = 'symbol-a'
+
+    yield {
+        'exchange': exchange_tag,
+        'market': market_tag,
+        'symbol': symbol_tag,
+        'now': '2000-01-01 00:01:23',
+        'depth': {
+            'bids': [
+                ['1.2', '3.4', None],
+                ['5.6', '7.8', '9'],
+            ],
+            'asks': [
+                ['1.2', '3.4', '5'],
+                ['6.7', '8.9', None],
+            ],
+        },
+    }, [
+        exchange_tag,
+        market_tag,
+        symbol_tag,
+        datetime.datetime(2000, 1, 1, 0, 1, 23),
+        [
+            [Decimal('1.2'), Decimal('3.4'), None],
+            [Decimal('5.6'), Decimal('7.8'), Decimal('9')],
+        ],
+        [
+            [Decimal('1.2'), Decimal('3.4'), Decimal('5')],
+            [Decimal('6.7'), Decimal('8.9'), None],
+        ],
+    ]
+
+
 class TestRealTransportProcess:
     @pytest.mark.parametrize(
         'prop, arg_value, expected_value',
@@ -623,7 +662,7 @@ class TestRealTransportProcess:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize('keys, expected_bind_exchanges', fixture_consume_price_depth())
-    async def test_consume_price_depth(
+    async def test_consume_price_depth_setup_rabbitmq_objects(
         self,
         mocker: MockFixture,
         keys: FrozenSet,
@@ -663,6 +702,50 @@ class TestRealTransportProcess:
 
         # This type of request don't answered synchronously
         assert not parent_connection.poll(0.001)
+
+        assert not process_task.cancelled()
+        process_task.cancel()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('data, expected_response', fixture_consume_price_depth_parse_json())
+    async def test_consume_price_depth_parse_json(
+        self,
+        mocker: MockFixture,
+        data: Mapping,
+        expected_response: Any
+    ):
+        connection_mock = mocker.patch(
+            'galts_trade_api.transport.real.RabbitConnection',
+            autospec=True
+        )
+        connection_instance_mock = connection_mock.return_value
+        connection_instance_mock.create_channel = AsyncMock()
+        consumer_mock = mocker.patch('galts_trade_api.transport.real.RabbitConsumer', autospec=True)
+
+        env_mock = Mock(spec_set=AsyncProgramEnv)
+        parent_connection, child_connection = Pipe()
+        process = RealTransportProcess(ready_event=Event(), connection=child_connection)
+
+        process_task = asyncio.create_task(process.main(env_mock))
+
+        dsn = 'test.local'
+        exchange = 'test-exchange'
+        request = ConsumePriceDepthRequest(dsn, exchange, frozenset())
+        parent_connection.send(request)
+        await asyncio.sleep(0.001)
+
+        # Hack call() object to execute a callback of consuming manually.
+        consumer_mock_call_args, _ = consumer_mock.call_args
+        rabbitmq_callback = consumer_mock_call_args[2]
+
+        message = aio_pika.Message(bytes(json.dumps(data).encode('utf-8')))
+        rabbitmq_callback(message)
+
+        assert parent_connection.poll(0.001)
+        response = parent_connection.recv()
+        assert len(response) == 2
+        assert response[0] == request
+        assert response[1] == expected_response
 
         assert not process_task.cancelled()
         process_task.cancel()

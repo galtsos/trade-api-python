@@ -26,6 +26,11 @@ def fixture_exchange_constructor_cast_properties():
         yield prop, now, now
 
 
+def factory_add_market_exception_on_duplicate():
+    yield factory_market(), factory_market(), f'Market with id 1 already exists'
+    yield factory_market(), factory_market(id=2), f'Market with tag "tag" already exists'
+
+
 class TestExchange:
     @pytest.mark.parametrize(
         'prop, arg_value, expected_value',
@@ -36,22 +41,32 @@ class TestExchange:
 
         assert getattr(instance, prop) == expected_value
 
-    def test_add_market_exception_on_duplicate(self):
+    @pytest.mark.parametrize(
+        'market1, market2, exception_msg',
+        factory_add_market_exception_on_duplicate()
+    )
+    def test_add_market_exception_on_duplicate(
+        self,
+        market1: Market,
+        market2: Market,
+        exception_msg: str
+    ):
         exchange = self._factory_exchange()
-        market = factory_market()
-        exchange.add_market(market)
+        exchange.add_market(market1)
 
-        with pytest.raises(ValueError, match='already exists'):
-            exchange.add_market(market)
+        with pytest.raises(ValueError, match=exception_msg):
+            exchange.add_market(market2)
 
-    def test_get_market_by_custom_tag(self):
+    def test_add_market_success(self):
+        id_ = 2
         market_tag = 'market-tag'
         exchange = self._factory_exchange()
-        market = factory_market(custom_tag=market_tag)
+        market = factory_market(id=id_, custom_tag=market_tag)
 
         exchange.add_market(market)
 
-        assert exchange.get_market_by_custom_tag(market_tag) is market
+        assert exchange.markets_by_id[id_] is market
+        assert exchange.markets_by_tag[market_tag] is market
 
     @classmethod
     def _factory_exchange(

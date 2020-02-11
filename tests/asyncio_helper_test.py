@@ -1,7 +1,7 @@
 import asyncio
 import signal
 from asyncio import Event
-from typing import AbstractSet, Optional, Callable, Any
+from typing import AbstractSet, Any, Callable, Optional
 from unittest.mock import ANY, Mock, sentinel
 
 import pytest

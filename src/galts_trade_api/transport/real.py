@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 from dataclasses import dataclass
+from decimal import Decimal
 from functools import partial
 from multiprocessing import Event, Pipe, Process
 from multiprocessing.connection import Connection
@@ -307,6 +308,19 @@ class RealTransportProcess(Process):
         message: aio_pika.IncomingMessage
     ) -> None:
         body = json.loads(message.body)
+
+        for depth in body['depth'].values():
+            for price_level in depth:
+                rate = Decimal(price_level[0])
+                amount = Decimal(price_level[1])
+
+                if len(price_level) > 2 and price_level[2] is not None:
+                    fee = Decimal(price_level[2])
+                else:
+                    fee = None
+
+                price_level[:] = [rate, amount, fee]
+
         args = [
             body['exchange'],
             body['market'],

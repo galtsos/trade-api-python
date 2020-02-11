@@ -8,7 +8,7 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='galts-trade-api',
-    version='0.0.2',
+    version='0.1.0',
     license='Mozilla Public License 2.0',
     author='Sergey Nevmerzhitsky',
     author_email='sergey.nevmerzhitsky@gmail.com',
