@@ -109,10 +109,11 @@ class AsyncProgramEnv:
         self._exception_handler_patch = value
 
     def exception_handler(self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+        logger.info('Caught exception', process_id=os.getpid())
+
         if self.exception_handler_patch:
             self.exception_handler_patch(loop, context)
-
-        logger.info('Caught exception', process_id=os.getpid())
-        loop.default_exception_handler(context)
+        else:
+            loop.default_exception_handler(context)
 
         loop.create_task(shutdown(loop))

@@ -31,10 +31,10 @@ async def start_trade_system(program_env: AsyncProgramEnv) -> None:
 
     await terminal.subscribe_to_prices(
         on_price,
-        [
+        {
             DepthConsumeKey(exchange_tag='binance', symbol_tag='BTCUSDT'),
             DepthConsumeKey(exchange_tag='binance', symbol_tag='BTCUSDC'),
-        ]
+        }
     )
 
     logger.info('Init finished!')

@@ -1,7 +1,8 @@
 import datetime
 from asyncio import Event, wait_for
 from decimal import Decimal
-from typing import Awaitable, Callable, Dict, List, Mapping, MutableMapping, Optional, Tuple, Union
+from typing import Awaitable, Callable, Collection, Dict, List, Mapping, MutableMapping, Optional, \
+    Tuple, Union
 
 from .asset import Asset, Symbol
 from .exchange import Exchange, Market
@@ -32,7 +33,7 @@ class Terminal:
         return self._transport_factory
 
     @transport_factory.setter
-    def transport_factory(self, value):
+    def transport_factory(self, value: TransportFactory):
         self._transport_factory = value
 
     @property
@@ -82,7 +83,7 @@ class Terminal:
     async def subscribe_to_prices(
         self,
         callback: OnPriceCallable,
-        consume_keys: Optional[List[DepthConsumeKey]] = None
+        consume_keys: Optional[Collection[DepthConsumeKey]] = None
     ) -> None:
         await self.transport_factory.consume_price_depth(
             lambda event: callback(*event),
