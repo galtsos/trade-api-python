@@ -1,7 +1,7 @@
 import datetime
 from asyncio import Event, wait_for
 from decimal import Decimal
-from typing import Awaitable, Callable, Dict, List, Mapping, MutableMapping, Optional, Sequence, \
+from typing import Awaitable, Callable, Collection, Dict, List, Mapping, MutableMapping, Optional, \
     Tuple, Union
 
 from .asset import Asset, Symbol
@@ -83,7 +83,7 @@ class Terminal:
     async def subscribe_to_prices(
         self,
         callback: OnPriceCallable,
-        consume_keys: Optional[Sequence[DepthConsumeKey]] = None
+        consume_keys: Optional[Collection[DepthConsumeKey]] = None
     ) -> None:
         await self.transport_factory.consume_price_depth(
             lambda event: callback(*event),
