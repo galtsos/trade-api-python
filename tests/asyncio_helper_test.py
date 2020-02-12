@@ -198,3 +198,4 @@ class TestAsyncProgramEnv:
         env.exception_handler(loop, context)
 
         assert is_called.is_set()
+        loop.default_exception_handler.assert_not_called()
