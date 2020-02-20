@@ -1,5 +1,12 @@
 import datetime
+from enum import Enum, unique
 from typing import Optional
+
+
+@unique
+class DealSide(Enum):
+    BUY = 'buy'
+    SELL = 'sell'
 
 
 class Asset:

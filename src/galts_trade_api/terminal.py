@@ -1,10 +1,12 @@
 import datetime
 from asyncio import Event, wait_for
+from collections import deque
 from decimal import Decimal
-from typing import Awaitable, Callable, Collection, Dict, List, Mapping, MutableMapping, Optional, \
-    Tuple, Union
+from functools import partial
+from typing import Awaitable, Callable, Collection, Deque, Dict, List, Mapping, MutableMapping, \
+    Optional, Tuple, Union
 
-from .asset import Asset, Symbol
+from .asset import Asset, DealSide, Symbol
 from .exchange import Exchange, Market
 from .tools import find_duplicates_in_list
 from .transport import DepthConsumeKey, TransportFactory
@@ -13,6 +15,7 @@ PriceLevelWithoutFee = Tuple[Decimal, Decimal]
 PriceLevelWithFee = Tuple[Decimal, Decimal, Optional[Decimal]]
 PriceLevel = Union[PriceLevelWithoutFee, PriceLevelWithFee]
 PriceDepth = List[PriceLevel]
+FullDepth = Tuple[PriceDepth, PriceDepth]
 
 OnPriceCallable = Callable[[str, str, str, datetime.datetime, PriceDepth, PriceDepth], Awaitable]
 
@@ -157,3 +160,61 @@ class Terminal:
             self._exchanges_by_id[entity['exchange_id']].add_market(Market(**entity))
 
         self._exchange_entities_inited.set()
+
+
+# @TODO Refactoring to an abstract class and inherit it
+# Term from https://www.investopedia.com/terms/d/depth-of-market.asp
+class MarketsDepthBuffer:
+    def __init__(self, limit_per_market: int = 1):
+        self._limit_per_market = int(limit_per_market)
+        self._depths: Dict[int, Deque[Tuple[datetime.datetime, FullDepth]]] = {}
+
+        if self.limit_per_market < 1:
+            raise ValueError('Value of limit_per_market should be equal to or greater than 1')
+
+    @property
+    def limit_per_market(self):
+        return self._limit_per_market
+
+    def register_depths(
+        self,
+        market_id: int,
+        time: datetime.datetime,
+        bids: PriceDepth,
+        asks: PriceDepth
+    ) -> None:
+        if market_id not in self._depths:
+            self._depths[market_id] = deque(maxlen=self.limit_per_market)
+
+        # @TODO Don't save the same
+        record = (time, (bids, asks,),)
+        self._depths[market_id].appendleft(record)
+
+    def get_depths_of_market(self, market_id: int) -> Deque[Tuple[datetime.datetime, FullDepth]]:
+        if not self.are_depths_of_markets_known(market_id):
+            raise ValueError(f'Prices for market with id {market_id} are unknown')
+
+        return self._depths[market_id]
+
+    def get_last_depth_of_market(self, market_id: int) -> Tuple[datetime.datetime, FullDepth]:
+        return self.get_depths_of_market(market_id)[0]
+
+    def get_last_side_depth_of_market(
+        self,
+        market_id: int,
+        side: DealSide
+    ) -> Tuple[datetime.datetime, PriceDepth]:
+        time, last_depth = self.get_last_depth_of_market(market_id)
+
+        # bids - to sell, asks - to buy
+        if side == DealSide.SELL:
+            return time, last_depth[0]
+        elif side == DealSide.BUY:
+            return time, last_depth[1]
+        else:
+            raise ValueError(f'Cannot get part of full depth record for deal side {side}')
+
+    def are_depths_of_markets_known(self, *market_ids: int) -> bool:
+        are_known = [id_ in self._depths for id_ in market_ids]
+
+        return all(are_known)
