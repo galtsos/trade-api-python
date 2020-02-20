@@ -7,7 +7,7 @@ from contextlib import suppress
 from copy import copy
 from decimal import Decimal
 from typing import Awaitable, Callable, Collection, Deque, Dict, List, Mapping, MutableMapping, \
-    Optional, Sequence, Tuple, Union
+    Optional, Tuple, Union
 
 from .asset import Asset, DealSide, Symbol
 from .exchange import Exchange, Market
@@ -103,16 +103,10 @@ class Terminal:
         callback: OnPriceCallable,
         consume_keys: Optional[Collection[DepthConsumeKey]] = None
     ) -> None:
-        callback_is_busy_flag = Event()
-        latest_update = []
+        updater = depths_updater(self, callback)
 
         await self.transport_factory.consume_price_depth(
-            lambda event: self._on_depths_update(
-                *event,
-                callback=callback,
-                busyness_flag=callback_is_busy_flag,
-                latest_update=latest_update
-            ),
+            lambda event: updater(*event),
             consume_keys
         )
 
@@ -184,47 +178,6 @@ class Terminal:
 
         self._exchange_entities_inited.set()
 
-    async def _on_depths_update(
-        self,
-        exchange_tag: str,
-        market_tag: str,
-        symbol_tag: str,
-        time: datetime.datetime,
-        # @TODO Make all args immutable
-        bids: PriceDepth,
-        asks: PriceDepth,
-        callback: OnPriceCallable,
-        busyness_flag: Event,
-        latest_update: Sequence
-    ) -> None:
-        with suppress(Exception):
-            exchange = self.exchanges_by_tag[exchange_tag]
-            market = exchange.markets_by_tag[market_tag]
-            self.depths.register_depths(market.id, time, bids, asks)
-            # @TODO Log the exception case?
-
-        actual_update = (exchange_tag, market_tag, symbol_tag, time, bids, asks,)
-        latest_update[:] = actual_update
-
-        if busyness_flag.is_set():
-            # @TODO Log the case?
-            return
-
-        busyness_flag.set()
-
-        while True:
-            await callback(*actual_update)
-
-            if actual_update == latest_update:
-                print('### there is no pending depths')
-                break
-
-            print('### THERE IS DEPTHS UPDATE')
-
-            actual_update = copy(latest_update)
-
-        busyness_flag.clear()
-
 
 # @TODO Refactoring to an abstract class and inherit it
 # Term from https://www.investopedia.com/terms/d/depth-of-market.asp
@@ -282,3 +235,46 @@ class MarketsDepthBuffer:
         are_known = [id_ in self._depths for id_ in market_ids]
 
         return all(are_known)
+
+
+def depths_updater(terminal: Terminal, callback: Callable) -> OnPriceCallable:
+    busyness_flag = Event()
+    latest_update = []
+
+    # @TODO Make all args immutable
+    async def on_depth_update(
+        exchange_tag: str,
+        market_tag: str,
+        symbol_tag: str,
+        time: datetime.datetime,
+        bids: PriceDepth,
+        asks: PriceDepth
+    ) -> None:
+        nonlocal latest_update
+
+        with suppress(Exception):
+            exchange = terminal.exchanges_by_tag[exchange_tag]
+            market = exchange.markets_by_tag[market_tag]
+            terminal.depths.register_depths(market.id, time, bids, asks)
+            # @TODO Log the exception case?
+
+        actual_update = (exchange_tag, market_tag, symbol_tag, time, bids, asks,)
+        latest_update = actual_update
+
+        if busyness_flag.is_set():
+            # @TODO Log the case?
+            return
+
+        busyness_flag.set()
+
+        while True:
+            await callback(*actual_update)
+
+            if actual_update == latest_update:
+                break
+
+            actual_update = copy(latest_update)
+
+        busyness_flag.clear()
+
+    return on_depth_update
