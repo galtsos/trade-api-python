@@ -5,7 +5,6 @@ from asyncio import Event, wait_for
 from collections import deque
 from contextlib import suppress
 from decimal import Decimal
-from functools import partial
 from typing import Awaitable, Callable, Collection, Deque, Dict, List, Mapping, MutableMapping, \
     Optional, Tuple, Union
 
@@ -103,8 +102,14 @@ class Terminal:
         callback: OnPriceCallable,
         consume_keys: Optional[Collection[DepthConsumeKey]] = None
     ) -> None:
+        callback_is_busy_flag = Event()
+
         await self.transport_factory.consume_price_depth(
-            lambda event: self._on_prices_update(*event, callback=callback),
+            lambda event: self._on_prices_update(
+                *event,
+                callback=callback,
+                busyness_flag=callback_is_busy_flag
+            ),
             consume_keys
         )
 
@@ -184,15 +189,24 @@ class Terminal:
         time: datetime.datetime,
         bids: PriceDepth,
         asks: PriceDepth,
-        callback: OnPriceCallable
+        callback: OnPriceCallable,
+        busyness_flag: Event
     ) -> None:
         with suppress(Exception):
             exchange = self.exchanges_by_tag[exchange_tag]
             market = exchange.markets_by_tag[market_tag]
             self.depths.register_depths(market.id, time, bids, asks)
-            # @TODO Log the case?
+            # @TODO Log the exception case?
 
+        if busyness_flag.is_set():
+            # @TODO Log the case?
+            return
+
+        busyness_flag.set()
         await callback(exchange_tag, market_tag, symbol_tag, time, bids, asks)
+        busyness_flag.clear()
+
+        # @TODO Call it again if depth has been updated
 
 
 # @TODO Refactoring to an abstract class and inherit it
