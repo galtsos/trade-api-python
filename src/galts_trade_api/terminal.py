@@ -4,9 +4,10 @@ import datetime
 from asyncio import Event, wait_for
 from collections import deque
 from contextlib import suppress
+from copy import copy
 from decimal import Decimal
 from typing import Awaitable, Callable, Collection, Deque, Dict, List, Mapping, MutableMapping, \
-    Optional, Tuple, Union
+    Optional, Sequence, Tuple, Union
 
 from .asset import Asset, DealSide, Symbol
 from .exchange import Exchange, Market
@@ -103,12 +104,14 @@ class Terminal:
         consume_keys: Optional[Collection[DepthConsumeKey]] = None
     ) -> None:
         callback_is_busy_flag = Event()
+        latest_update = []
 
         await self.transport_factory.consume_price_depth(
-            lambda event: self._on_prices_update(
+            lambda event: self._on_depths_update(
                 *event,
                 callback=callback,
-                busyness_flag=callback_is_busy_flag
+                busyness_flag=callback_is_busy_flag,
+                latest_update=latest_update
             ),
             consume_keys
         )
@@ -181,16 +184,18 @@ class Terminal:
 
         self._exchange_entities_inited.set()
 
-    async def _on_prices_update(
+    async def _on_depths_update(
         self,
         exchange_tag: str,
         market_tag: str,
         symbol_tag: str,
         time: datetime.datetime,
+        # @TODO Make all args immutable
         bids: PriceDepth,
         asks: PriceDepth,
         callback: OnPriceCallable,
-        busyness_flag: Event
+        busyness_flag: Event,
+        latest_update: Sequence
     ) -> None:
         with suppress(Exception):
             exchange = self.exchanges_by_tag[exchange_tag]
@@ -198,15 +203,27 @@ class Terminal:
             self.depths.register_depths(market.id, time, bids, asks)
             # @TODO Log the exception case?
 
+        actual_update = (exchange_tag, market_tag, symbol_tag, time, bids, asks,)
+        latest_update[:] = actual_update
+
         if busyness_flag.is_set():
             # @TODO Log the case?
             return
 
         busyness_flag.set()
-        await callback(exchange_tag, market_tag, symbol_tag, time, bids, asks)
-        busyness_flag.clear()
 
-        # @TODO Call it again if depth has been updated
+        while True:
+            await callback(*actual_update)
+
+            if actual_update == latest_update:
+                print('### there is no pending depths')
+                break
+
+            print('### THERE IS DEPTHS UPDATE')
+
+            actual_update = copy(latest_update)
+
+        busyness_flag.clear()
 
 
 # @TODO Refactoring to an abstract class and inherit it
