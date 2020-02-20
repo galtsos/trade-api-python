@@ -3,12 +3,12 @@ from __future__ import annotations
 import datetime
 from asyncio import Event, wait_for
 from collections import deque
-from contextlib import suppress
 from copy import copy
 from decimal import Decimal
 from typing import Awaitable, Callable, Collection, Deque, Dict, List, Mapping, MutableMapping, \
     Optional, Tuple, Union
 
+from . import logger
 from .asset import Asset, DealSide, Symbol
 from .exchange import Exchange, Market
 from .tools import find_duplicates_in_list
@@ -252,17 +252,18 @@ def depths_updater(terminal: Terminal, callback: Callable) -> OnPriceCallable:
     ) -> None:
         nonlocal latest_update
 
-        with suppress(Exception):
+        try:
             exchange = terminal.exchanges_by_tag[exchange_tag]
             market = exchange.markets_by_tag[market_tag]
             terminal.depths.register_depths(market.id, time, bids, asks)
-            # @TODO Log the exception case?
+        except Exception:
+            logger.exception('cannot_find_market', exchange_tag=exchange_tag, market_tag=market_tag)
 
         actual_update = (exchange_tag, market_tag, symbol_tag, time, bids, asks,)
         latest_update = actual_update
 
         if busyness_flag.is_set():
-            # @TODO Log the case?
+            logger.debug('Previous depths update callback has not yet completed')
             return
 
         busyness_flag.set()
