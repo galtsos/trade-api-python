@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import datetime
 from asyncio import Event, wait_for
 from collections import deque
+from contextlib import suppress
 from decimal import Decimal
 from functools import partial
 from typing import Awaitable, Callable, Collection, Deque, Dict, List, Mapping, MutableMapping, \
@@ -21,8 +24,16 @@ OnPriceCallable = Callable[[str, str, str, datetime.datetime, PriceDepth, PriceD
 
 
 class Terminal:
-    def __init__(self, transport: TransportFactory):
+    @classmethod
+    def factory(cls, transport: TransportFactory, depths_limit_per_market: int = 1) -> Terminal:
+        mdb = MarketsDepthBuffer(depths_limit_per_market)
+
+        return cls(transport, mdb)
+
+    def __init__(self, transport: TransportFactory, depths: MarketsDepthBuffer):
         self._transport_factory: TransportFactory = transport
+        self._depths: MarketsDepthBuffer = depths
+
         self._exchange_entities_inited = Event()
         self._assets_by_id: Dict[int, Asset] = {}
         self._assets_by_tag: Dict[str, Asset] = {}
@@ -38,6 +49,10 @@ class Terminal:
     @transport_factory.setter
     def transport_factory(self, value: TransportFactory):
         self._transport_factory = value
+
+    @property
+    def depths(self) -> MarketsDepthBuffer:
+        return self._depths
 
     @property
     def assets_by_id(self):
@@ -89,7 +104,7 @@ class Terminal:
         consume_keys: Optional[Collection[DepthConsumeKey]] = None
     ) -> None:
         await self.transport_factory.consume_price_depth(
-            lambda event: callback(*event),
+            lambda event: self._on_prices_update(*event, callback=callback),
             consume_keys
         )
 
@@ -160,6 +175,24 @@ class Terminal:
             self._exchanges_by_id[entity['exchange_id']].add_market(Market(**entity))
 
         self._exchange_entities_inited.set()
+
+    async def _on_prices_update(
+        self,
+        exchange_tag: str,
+        market_tag: str,
+        symbol_tag: str,
+        time: datetime.datetime,
+        bids: PriceDepth,
+        asks: PriceDepth,
+        callback: OnPriceCallable
+    ) -> None:
+        with suppress(Exception):
+            exchange = self.exchanges_by_tag[exchange_tag]
+            market = exchange.markets_by_tag[market_tag]
+            self.depths.register_depths(market.id, time, bids, asks)
+            # @TODO Log the case?
+
+        await callback(exchange_tag, market_tag, symbol_tag, time, bids, asks)
 
 
 # @TODO Refactoring to an abstract class and inherit it

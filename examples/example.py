@@ -19,7 +19,7 @@ async def start_trade_system(program_env: AsyncProgramEnv) -> None:
     )
     logger.debug(f'transport={transport}')
 
-    terminal = Terminal(transport)
+    terminal = Terminal.factory(transport)
     logger.debug(f'terminal={terminal}')
     await terminal.init_transport()
 
