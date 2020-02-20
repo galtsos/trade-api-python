@@ -17,7 +17,7 @@ from .transport import DepthConsumeKey, TransportFactory
 PriceLevelWithoutFee = Tuple[Decimal, Decimal]
 PriceLevelWithFee = Tuple[Decimal, Decimal, Optional[Decimal]]
 PriceLevel = Union[PriceLevelWithoutFee, PriceLevelWithFee]
-PriceDepth = List[PriceLevel]
+PriceDepth = Tuple[PriceLevel]
 FullDepth = Tuple[PriceDepth, PriceDepth]
 
 OnPriceCallable = Callable[[str, str, str, datetime.datetime, PriceDepth, PriceDepth], Awaitable]
@@ -241,7 +241,6 @@ def depths_updater(terminal: Terminal, callback: Callable) -> OnPriceCallable:
     busyness_flag = Event()
     latest_update = []
 
-    # @TODO Make all args immutable
     async def on_depth_update(
         exchange_tag: str,
         market_tag: str,
