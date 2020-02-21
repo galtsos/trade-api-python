@@ -615,6 +615,25 @@ class TestMarketsDepthsBuffer:
         assert prices.are_depths_of_markets_known(1, 2)
 
 
+def fixture_several_depth_updates():
+    time1 = datetime.utcnow()
+    bids1 = ((Decimal('1.0'), Decimal('2.0'),),)
+    asks1 = ((Decimal('2.0'), Decimal('3.0'),),)
+    depth_update1 = ('exchange-a', 'market-a', 'symbol', time1, bids1, asks1,)
+
+    time2 = datetime.utcnow()
+    bids2 = ((Decimal('3.0'), Decimal('4.0'),),)
+    asks2 = ((Decimal('4.0'), Decimal('5.0'),),)
+    depth_update2 = ('exchange-a', 'market-a', 'symbol', time2, bids2, asks2,)
+
+    time3 = datetime.utcnow()
+    bids3 = ((Decimal('5.0'), Decimal('6.0'),),)
+    asks3 = ((Decimal('6.0'), Decimal('7.0'),),)
+    depth_update3 = ('exchange-a', 'market-a', 'symbol', time3, bids3, asks3,)
+
+    yield [depth_update1, depth_update2, depth_update3]
+
+
 class TestDepthsUpdater:
     @pytest.mark.asyncio
     async def test_exception_about_market(self, mocker: MockFixture):
@@ -667,6 +686,101 @@ class TestDepthsUpdater:
 
         assert len(terminal.depths.get_depths_of_market(1)) == 1
         assert terminal.depths.get_last_depth_of_market(1) == (time, (bids, asks,),)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('updates', fixture_several_depth_updates())
+    async def test_busy_behaviour_when_callback_is_fast(
+        self,
+        mocker: MockFixture,
+        updates: Sequence[Tuple]
+    ):
+        logger_mock = mocker.patch('galts_trade_api.terminal.logger')
+        is_called = Event()
+
+        async def cb(*args):
+            is_called.set()
+
+        factory_fake = FakeTransportFactory()
+        terminal = factory_terminal(factory_fake, MarketsDepthsBuffer(5))
+
+        entities_data = get_entities_data_with_single_market()
+        factory_fake.get_exchange_entities_data = entities_data
+
+        await terminal.init_exchange_entities()
+
+        with pytest.raises(ValueError, match='Prices for market with id 1 are unknown'):
+            terminal.depths.get_depths_of_market(1)
+
+        result = depths_updater(terminal, cb)
+        await result(*updates[0])
+
+        assert is_called.is_set()
+
+        assert len(terminal.depths.get_depths_of_market(1)) == 1
+        depth_record = self._form_depth_record_from_update(updates[0])
+        assert terminal.depths.get_last_depth_of_market(1) == depth_record
+
+        is_called.clear()
+
+        coroutines = [result(*update) for update in updates[1:]]
+        await asyncio.gather(*coroutines)
+
+        assert is_called.is_set()
+        logger_mock.assert_not_called()
+        assert len(terminal.depths.get_depths_of_market(1)) == len(updates)
+        depth_record = self._form_depth_record_from_update(updates[-1])
+        assert terminal.depths.get_last_depth_of_market(1) == depth_record
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('updates', fixture_several_depth_updates())
+    async def test_busy_behaviour_when_callback_is_slow(
+        self,
+        mocker: MockFixture,
+        updates: Sequence[Tuple]
+    ):
+        logger_mock = mocker.patch('galts_trade_api.terminal.logger')
+        is_called = Event()
+
+        async def cb(*args):
+            is_called.set()
+            await asyncio.sleep(0.2)
+
+        factory_fake = FakeTransportFactory()
+        terminal = factory_terminal(factory_fake, MarketsDepthsBuffer(5))
+
+        entities_data = get_entities_data_with_single_market()
+        factory_fake.get_exchange_entities_data = entities_data
+
+        await terminal.init_exchange_entities()
+
+        with pytest.raises(ValueError, match='Prices for market with id 1 are unknown'):
+            terminal.depths.get_depths_of_market(1)
+
+        result = depths_updater(terminal, cb)
+        await result(*updates[0])
+
+        assert is_called.is_set()
+
+        assert len(terminal.depths.get_depths_of_market(1)) == 1
+        depth_record = self._form_depth_record_from_update(updates[0])
+        assert terminal.depths.get_last_depth_of_market(1) == depth_record
+
+        is_called.clear()
+
+        coroutines = [result(*update) for update in updates[1:]]
+        await asyncio.gather(*coroutines)
+
+        assert is_called.is_set()
+        logger_mock.debug.assert_called_once_with(
+            'Previous depths update callback has not yet completed'
+        )
+        assert len(terminal.depths.get_depths_of_market(1)) == len(updates)
+        depth_record = self._form_depth_record_from_update(updates[-1])
+        assert terminal.depths.get_last_depth_of_market(1) == depth_record
+
+    @classmethod
+    def _form_depth_record_from_update(cls, update: Sequence) -> Tuple:
+        return update[3], (update[4], update[5],)
 
 
 def factory_terminal(
