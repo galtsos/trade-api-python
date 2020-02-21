@@ -5,7 +5,7 @@ from asyncio import Event, wait_for
 from collections import deque
 from copy import copy
 from decimal import Decimal
-from typing import Awaitable, Callable, Collection, Deque, Dict, List, Mapping, MutableMapping, \
+from typing import Awaitable, Callable, Collection, Deque, Dict, Mapping, MutableMapping, \
     Optional, Tuple, Union
 
 from . import logger
@@ -26,13 +26,13 @@ OnPriceCallable = Callable[[str, str, str, datetime.datetime, PriceDepth, PriceD
 class Terminal:
     @classmethod
     def factory(cls, transport: TransportFactory, depths_limit_per_market: int = 1) -> Terminal:
-        mdb = MarketsDepthBuffer(depths_limit_per_market)
+        mdb = MarketsDepthsBuffer(depths_limit_per_market)
 
         return cls(transport, mdb)
 
-    def __init__(self, transport: TransportFactory, depths: MarketsDepthBuffer):
+    def __init__(self, transport: TransportFactory, depths: MarketsDepthsBuffer):
         self._transport_factory: TransportFactory = transport
-        self._depths: MarketsDepthBuffer = depths
+        self._depths: MarketsDepthsBuffer = depths
 
         self._exchange_entities_inited = Event()
         self._assets_by_id: Dict[int, Asset] = {}
@@ -51,7 +51,7 @@ class Terminal:
         self._transport_factory = value
 
     @property
-    def depths(self) -> MarketsDepthBuffer:
+    def depths(self) -> MarketsDepthsBuffer:
         return self._depths
 
     @property
@@ -179,9 +179,8 @@ class Terminal:
         self._exchange_entities_inited.set()
 
 
-# @TODO Refactoring to an abstract class and inherit it
 # Term from https://www.investopedia.com/terms/d/depth-of-market.asp
-class MarketsDepthBuffer:
+class MarketsDepthsBuffer:
     def __init__(self, limit_per_market: int = 1):
         self._limit_per_market = int(limit_per_market)
         self._depths: Dict[int, Deque[Tuple[datetime.datetime, FullDepth]]] = {}
