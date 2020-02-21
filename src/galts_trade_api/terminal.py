@@ -202,8 +202,11 @@ class MarketsDepthsBuffer:
         if market_id not in self._depths:
             self._depths[market_id] = deque(maxlen=self.limit_per_market)
 
-        # @TODO Don't save the same
         record = (time, (bids, asks,),)
+
+        if len(self._depths[market_id]) > 0 and self._depths[market_id][0] == record:
+            return
+
         self._depths[market_id].appendleft(record)
 
     def get_depths_of_market(self, market_id: int) -> Deque[Tuple[datetime.datetime, FullDepth]]:
