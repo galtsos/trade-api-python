@@ -250,16 +250,14 @@ class TestTerminal:
     @pytest.mark.parametrize('loop_debug', fixture_init_transport_calls_factory())
     async def test_init_transport_calls_factory(self, loop_debug: bool):
         factory = AsyncMock(spec_set=TransportFactory)
-        depths = MarketsDepthsBuffer()
-        terminal = Terminal(factory, depths)
+        terminal = factory_terminal(factory)
         await terminal.init_transport(loop_debug)
 
         factory.init.assert_called_once_with(loop_debug)
 
     def test_shutdown_transport_calls_factory(self):
         factory = Mock(spec_set=TransportFactory)
-        depths = MarketsDepthsBuffer()
-        terminal = Terminal(factory, depths)
+        terminal = factory_terminal(factory)
         terminal.shutdown_transport()
 
         factory.shutdown.assert_called_once_with()
@@ -270,17 +268,13 @@ class TestTerminal:
         pass
 
     def test_is_exchange_entities_not_inited_after_instantiation(self):
-        factory = Mock(spec_set=TransportFactory)
-        depths = MarketsDepthsBuffer()
-        terminal = Terminal(factory, depths)
+        terminal = factory_terminal()
 
         assert not terminal.is_exchange_entities_inited()
 
     @pytest.mark.asyncio
     async def test_wait_exchange_entities_inited_exception_after_timeout(self):
-        factory = Mock(spec_set=TransportFactory)
-        depths = MarketsDepthsBuffer()
-        terminal = Terminal(factory, depths)
+        terminal = factory_terminal()
 
         with pytest.raises(asyncio.TimeoutError):
             await terminal.wait_exchange_entities_inited(0.001)
@@ -288,8 +282,7 @@ class TestTerminal:
     @pytest.mark.asyncio
     async def test_init_exchange_entities_calls_factory(self):
         factory = AsyncMock(spec_set=TransportFactory)
-        depths = MarketsDepthsBuffer()
-        terminal = Terminal(factory, depths)
+        terminal = factory_terminal(factory)
         await terminal.init_exchange_entities()
 
         factory.get_exchange_entities.assert_called_once_with(ANY)
@@ -306,9 +299,8 @@ class TestTerminal:
     ):
         factory_fake = FakeTransportFactory()
         factory_fake.get_exchange_entities_data = data
-        depths = MarketsDepthsBuffer()
+        terminal = factory_terminal(factory_fake)
 
-        terminal = Terminal(factory_fake, depths)
         with pytest.raises(KeyError, match=f'Key "{expected_key_name}" is required'):
             await terminal.init_exchange_entities()
 
@@ -324,9 +316,8 @@ class TestTerminal:
     ):
         factory_fake = FakeTransportFactory()
         factory_fake.get_exchange_entities_data = data
-        depths = MarketsDepthsBuffer()
+        terminal = factory_terminal(factory_fake)
 
-        terminal = Terminal(factory_fake, depths)
         with pytest.raises(ValueError, match=expected_message):
             await terminal.init_exchange_entities()
 
@@ -346,9 +337,8 @@ class TestTerminal:
     ):
         factory_fake = FakeTransportFactory()
         factory_fake.get_exchange_entities_data = entities_data
-        depths = MarketsDepthsBuffer()
 
-        terminal = Terminal(factory_fake, depths)
+        terminal = factory_terminal(factory_fake)
         await terminal.init_exchange_entities()
 
         assert list(terminal.assets_by_id.keys()) == expected_assets_ids
@@ -363,8 +353,7 @@ class TestTerminal:
         factory_fake = FakeTransportFactory()
         factory_fake.get_exchange_entities_data = data
 
-        depths = MarketsDepthsBuffer()
-        terminal = Terminal(factory_fake, depths)
+        terminal = factory_terminal(factory_fake)
         await terminal.init_exchange_entities()
 
         assert terminal.is_exchange_entities_inited()
@@ -373,8 +362,7 @@ class TestTerminal:
     @pytest.mark.asyncio
     async def test_getters_return_inited_data(self):
         factory_fake = FakeTransportFactory()
-        depths = MarketsDepthsBuffer()
-        terminal = Terminal(factory_fake, depths)
+        terminal = factory_terminal(factory_fake)
 
         getters = [
             terminal.assets_by_id,
@@ -465,8 +453,7 @@ class TestTerminal:
         keys = []
 
         factory = AsyncMock(spec_set=TransportFactory)
-        depths = MarketsDepthsBuffer()
-        terminal = Terminal(factory, depths)
+        terminal = factory_terminal(factory)
         await terminal.subscribe_to_prices(lambda: None, keys)
 
         factory.consume_price_depth.assert_called_once_with(ANY, keys)
@@ -485,11 +472,22 @@ class TestTerminal:
             assert args == data
             is_called.set()
 
-        depths = MarketsDepthsBuffer()
-        terminal = Terminal(factory_fake, depths)
+        terminal = factory_terminal(factory_fake)
         keys = []
         await terminal.subscribe_to_prices(cb, keys)
         assert is_called.is_set()
+
+
+def factory_terminal(
+    factory: Optional[TransportFactory] = None,
+    depths: Optional[MarketsDepthsBuffer] = None
+) -> Terminal:
+    if factory is None:
+        factory = AsyncMock(spec_set=TransportFactory)
+    if depths is None:
+        depths = MarketsDepthsBuffer()
+
+    return Terminal(factory, depths)
 
 
 class FakeTransportFactory(TransportFactory):
