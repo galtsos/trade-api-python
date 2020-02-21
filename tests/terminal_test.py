@@ -2,14 +2,14 @@ import asyncio
 from asyncio import Event
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Awaitable, Callable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 from unittest.mock import ANY, Mock
 
 import pytest
 from pytest_mock import MockFixture
 
 from galts_trade_api.asset import DealSide
-from galts_trade_api.terminal import MarketsDepthsBuffer, Terminal
+from galts_trade_api.terminal import MarketsDepthsBuffer, Terminal, depths_updater
 from galts_trade_api.transport import DepthConsumeKey, MessageConsumerCollection, TransportFactory
 from .utils import AsyncMock
 
@@ -380,57 +380,7 @@ class TestTerminal:
             with pytest.raises(KeyError):
                 _ = getter[1]
 
-        data = {
-            'assets': {
-                1: {
-                    'id': 1,
-                    'tag': 'AS1',
-                    'name': 'Asset A',
-                    'precision': 2,
-                    'create_time': None,
-                    'delete_time': None,
-                },
-                2: {
-                    'id': 2,
-                    'tag': 'AS2',
-                    'name': 'Asset B',
-                    'precision': 2,
-                    'create_time': None,
-                    'delete_time': None,
-                },
-            },
-            'symbols': {
-                1: {
-                    'id': 1,
-                    'base_asset_id': 1,
-                    'quote_asset_id': 2,
-                    'create_time': None,
-                    'delete_time': None,
-                },
-            },
-            'exchanges': {
-                1: {
-                    'id': 1,
-                    'tag': 'exchange-a',
-                    'name': 'Exchange',
-                    'create_time': None,
-                    'delete_time': None,
-                    'disable_time': None,
-                },
-            },
-            'markets': {
-                1: {
-                    'id': 1,
-                    'custom_tag': 'market-a',
-                    'exchange_id': 1,
-                    'symbol_id': 1,
-                    'trade_endpoint': 'test.local',
-                    'create_time': None,
-                    'delete_time': None,
-                },
-            },
-        }
-        factory_fake.get_exchange_entities_data = data
+        factory_fake.get_exchange_entities_data = get_entities_data_with_single_market()
 
         await terminal.init_exchange_entities()
 
@@ -466,8 +416,7 @@ class TestTerminal:
 
     @pytest.mark.asyncio
     async def test_subscribe_to_prices_correctly_init_callback(self, mocker: MockFixture):
-        logger_mock = mocker.patch('galts_trade_api.terminal.logger')
-
+        mocker.patch('galts_trade_api.terminal.logger')
         is_called = Event()
         data = ('exchange', 'market', 'symbol', datetime.utcnow(), (), (),)
         factory_fake = FakeTransportFactory()
@@ -481,23 +430,6 @@ class TestTerminal:
         keys = []
         await terminal.subscribe_to_prices(cb, keys)
         assert is_called.is_set()
-        logger_mock.exception.assert_called_once_with(
-            'cannot_find_market',
-            exchange_tag='exchange',
-            market_tag='market'
-        )
-
-
-def factory_terminal(
-    factory: Optional[TransportFactory] = None,
-    depths: Optional[MarketsDepthsBuffer] = None
-) -> Terminal:
-    if factory is None:
-        factory = AsyncMock(spec_set=TransportFactory)
-    if depths is None:
-        depths = MarketsDepthsBuffer()
-
-    return Terminal(factory, depths)
 
 
 class FakeTransportFactory(TransportFactory):
@@ -681,3 +613,122 @@ class TestMarketsDepthsBuffer:
 
         assert prices.are_depths_of_markets_known(1)
         assert prices.are_depths_of_markets_known(1, 2)
+
+
+class TestDepthsUpdater:
+    @pytest.mark.asyncio
+    async def test_exception_about_market(self, mocker: MockFixture):
+        logger_mock = mocker.patch('galts_trade_api.terminal.logger')
+        is_called = Event()
+        data = ('exchange', 'market', 'symbol', datetime.utcnow(), (), (),)
+
+        async def cb(*args):
+            assert args == data
+            is_called.set()
+
+        terminal = factory_terminal()
+        result = depths_updater(terminal, cb)
+        await result(*data)
+
+        assert is_called.is_set()
+        logger_mock.exception.assert_called_once_with(
+            'cannot_find_market',
+            exchange_tag='exchange',
+            market_tag='market'
+        )
+
+    @pytest.mark.asyncio
+    async def test_when_entities_exist(self):
+        is_called = Event()
+        time = datetime.utcnow()
+        bids = ()
+        asks = ()
+        depth_update = ('exchange-a', 'market-a', 'symbol', time, bids, asks,)
+
+        async def cb(*args):
+            assert args == depth_update
+            is_called.set()
+
+        factory_fake = FakeTransportFactory()
+        terminal = factory_terminal(factory_fake)
+
+        entities_data = get_entities_data_with_single_market()
+        factory_fake.get_exchange_entities_data = entities_data
+
+        await terminal.init_exchange_entities()
+
+        with pytest.raises(ValueError, match='Prices for market with id 1 are unknown'):
+            terminal.depths.get_depths_of_market(1)
+
+        result = depths_updater(terminal, cb)
+        await result(*depth_update)
+
+        assert is_called.is_set()
+
+        assert len(terminal.depths.get_depths_of_market(1)) == 1
+        assert terminal.depths.get_last_depth_of_market(1) == (time, (bids, asks,),)
+
+
+def factory_terminal(
+    factory: Optional[TransportFactory] = None,
+    depths: Optional[MarketsDepthsBuffer] = None
+) -> Terminal:
+    if factory is None:
+        factory = AsyncMock(spec_set=TransportFactory)
+    if depths is None:
+        depths = MarketsDepthsBuffer()
+
+    return Terminal(factory, depths)
+
+
+def get_entities_data_with_single_market() -> Dict[str, Any]:
+    return {
+        'assets': {
+            1: {
+                'id': 1,
+                'tag': 'AS1',
+                'name': 'Asset A',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+            2: {
+                'id': 2,
+                'tag': 'AS2',
+                'name': 'Asset B',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+        'symbols': {
+            1: {
+                'id': 1,
+                'base_asset_id': 1,
+                'quote_asset_id': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+        'exchanges': {
+            1: {
+                'id': 1,
+                'tag': 'exchange-a',
+                'name': 'Exchange',
+                'create_time': None,
+                'delete_time': None,
+                'disable_time': None,
+            },
+        },
+        'markets': {
+            1: {
+                'id': 1,
+                'custom_tag': 'market-a',
+                'exchange_id': 1,
+                'symbol_id': 1,
+                'trade_endpoint': 'test.local',
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+    }

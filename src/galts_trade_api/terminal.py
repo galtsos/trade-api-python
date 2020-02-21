@@ -239,7 +239,7 @@ class MarketsDepthsBuffer:
         return all(are_known)
 
 
-def depths_updater(terminal: Terminal, callback: Callable) -> OnPriceCallable:
+def depths_updater(terminal: Terminal, callback: OnPriceCallable) -> OnPriceCallable:
     busyness_flag = Event()
     latest_update = []
 
