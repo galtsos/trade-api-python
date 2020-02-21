@@ -236,6 +236,14 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
 
 
 class TestTerminal:
+    def test_factory_setup_properties(self):
+        factory = Mock(spec_set=TransportFactory)
+
+        result = Terminal.factory(factory, 5)
+
+        assert result.transport_factory is factory
+        assert result.depths.limit_per_market == 5
+
     def test_properties(self):
         factory1 = Mock(spec_set=TransportFactory)
         factory2 = Mock(spec_set=TransportFactory)
