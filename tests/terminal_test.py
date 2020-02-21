@@ -546,8 +546,6 @@ class TestMarketsDepthsBuffer:
         with pytest.raises(ValueError, match=expected_msg):
             getattr(prices, method_name)(*args)
 
-    # @TODO add test for duplicates
-
     def test_register_depths_appends_to_left(self):
         prices = MarketsDepthsBuffer(2)
 
@@ -578,6 +576,41 @@ class TestMarketsDepthsBuffer:
         assert list(prices.get_depths_of_market(1)) == [
             (time3, (sell_prices3, buy_prices3,)),
             (time2, (sell_prices2, buy_prices2,)),
+        ]
+
+    def test_register_depths_dont_append_duplicates(self):
+        prices = MarketsDepthsBuffer(2)
+
+        time1 = datetime.utcnow()
+        sell_prices1 = ((Decimal('1'), Decimal('2')),)
+        buy_prices1 = ((Decimal('3'), Decimal('4')),)
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        time2 = datetime.utcnow()
+        sell_prices2 = ((Decimal('2'), Decimal('3')),)
+        buy_prices2 = ((Decimal('4'), Decimal('5')),)
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time2, (sell_prices2, buy_prices2,)),
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time2, (sell_prices2, buy_prices2,)),
+            (time1, (sell_prices1, buy_prices1,)),
         ]
 
     def test_get_last_depth_of_market(self):

@@ -26,9 +26,9 @@ OnPriceCallable = Callable[[str, str, str, datetime.datetime, PriceDepth, PriceD
 class Terminal:
     @classmethod
     def factory(cls, transport: TransportFactory, depths_limit_per_market: int = 1) -> Terminal:
-        mdb = MarketsDepthsBuffer(depths_limit_per_market)
+        depths = MarketsDepthsBuffer(depths_limit_per_market)
 
-        return cls(transport, mdb)
+        return cls(transport, depths)
 
     def __init__(self, transport: TransportFactory, depths: MarketsDepthsBuffer):
         self._transport_factory: TransportFactory = transport
