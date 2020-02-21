@@ -465,9 +465,8 @@ class TestTerminal:
         depths_updater_mock.assert_called_once_with(terminal, cb)
 
     @pytest.mark.asyncio
-    async def test_subscribe_to_prices(self):
-        # @TODO Cover new cases
-        pytest.skip('Not finished')
+    async def test_subscribe_to_prices_correctly_init_callback(self, mocker: MockFixture):
+        logger_mock = mocker.patch('galts_trade_api.terminal.logger')
 
         is_called = Event()
         data = ('exchange', 'market', 'symbol', datetime.utcnow(), (), (),)
@@ -482,6 +481,11 @@ class TestTerminal:
         keys = []
         await terminal.subscribe_to_prices(cb, keys)
         assert is_called.is_set()
+        logger_mock.exception.assert_called_once_with(
+            'cannot_find_market',
+            exchange_tag='exchange',
+            market_tag='market'
+        )
 
 
 def factory_terminal(
