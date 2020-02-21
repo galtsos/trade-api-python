@@ -473,6 +473,7 @@ class TestTerminal:
 
     @pytest.mark.asyncio
     async def test_subscribe_to_prices(self):
+        # @TODO Cover new cases
         pytest.skip('Not finished')
 
         is_called = Event()
@@ -516,3 +517,126 @@ class FakeTransportFactory(TransportFactory):
         await result.send(self.consume_price_depth_data)
 
         return result
+
+
+def fixture_no_prices_after_init():
+    expected_msg = 'Prices for market with id 1 are unknown'
+
+    yield expected_msg, 'get_depths_of_market', (1,)
+    yield expected_msg, 'get_last_depth_of_market', (1,)
+    yield expected_msg, 'get_last_side_depth_of_market', (1, DealSide.BUY,)
+    yield expected_msg, 'get_last_side_depth_of_market', (1, DealSide.SELL,)
+
+
+class TestMarketsDepthsBuffer:
+    def test_constructor_set_limit(self):
+        limit = 10
+        prices = MarketsDepthsBuffer(limit)
+
+        assert prices.limit_per_market == limit
+
+    def test_constructor_exception_on_wrong_count_argument(self):
+        with pytest.raises(ValueError, match='limit_per_market should be'):
+            MarketsDepthsBuffer(0)
+        with pytest.raises(ValueError, match='limit_per_market should be'):
+            MarketsDepthsBuffer(-5)
+
+    @pytest.mark.parametrize('expected_msg, method_name, args', fixture_no_prices_after_init())
+    def test_no_prices_after_init(self, expected_msg: str, method_name: str, args: Tuple[Any]):
+        prices = MarketsDepthsBuffer(2)
+
+        with pytest.raises(ValueError, match=expected_msg):
+            getattr(prices, method_name)(*args)
+
+    # @TODO add test for duplicates
+
+    def test_register_depths_appends_to_left(self):
+        prices = MarketsDepthsBuffer(2)
+
+        time1 = datetime.utcnow()
+        sell_prices1 = ((Decimal('1'), Decimal('2')),)
+        buy_prices1 = ((Decimal('3'), Decimal('4')),)
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        time2 = datetime.utcnow()
+        sell_prices2 = ((Decimal('2'), Decimal('3')),)
+        buy_prices2 = ((Decimal('4'), Decimal('5')),)
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time2, (sell_prices2, buy_prices2,)),
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        time3 = datetime.utcnow()
+        sell_prices3 = ((Decimal('3'), Decimal('4')),)
+        buy_prices3 = ((Decimal('5'), Decimal('6')),)
+        prices.register_depths(1, time3, sell_prices3, buy_prices3)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time3, (sell_prices3, buy_prices3,)),
+            (time2, (sell_prices2, buy_prices2,)),
+        ]
+
+    def test_get_last_depth_of_market(self):
+        prices = MarketsDepthsBuffer(2)
+
+        time1 = datetime.utcnow()
+        sell_prices1 = ((Decimal('1'), Decimal('2')),)
+        buy_prices1 = ((Decimal('3'), Decimal('4')),)
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert prices.get_last_depth_of_market(1) == (time1, (sell_prices1, buy_prices1,))
+
+        time2 = datetime.utcnow()
+        sell_prices2 = ((Decimal('3'), Decimal('4')),)
+        buy_prices2 = ((Decimal('5'), Decimal('6')),)
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert prices.get_last_depth_of_market(1) == (time2, (sell_prices2, buy_prices2,))
+
+    def test_get_last_side_depth_of_market_exception_for_unknown_side(self):
+        prices = MarketsDepthsBuffer(2)
+        prices.register_depths(1, datetime.utcnow(), (), ())
+
+        with pytest.raises(ValueError, match=' for deal side 100500'):
+            prices.get_last_side_depth_of_market(1, 100500)
+
+    def test_get_last_side_depth_of_market_returns_side_prices(self):
+        prices = MarketsDepthsBuffer(2)
+
+        time1 = datetime.utcnow()
+        sell_prices1 = ((Decimal('1'), Decimal('2')),)
+        buy_prices1 = ((Decimal('3'), Decimal('4')),)
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert prices.get_last_side_depth_of_market(1, DealSide.BUY) == (time1, buy_prices1,)
+        assert prices.get_last_side_depth_of_market(1, DealSide.SELL) == (time1, sell_prices1,)
+
+        time2 = datetime.utcnow()
+        sell_prices2 = ((Decimal('3'), Decimal('4'),),)
+        buy_prices2 = ((Decimal('5'), Decimal('6'),),)
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert prices.get_last_side_depth_of_market(1, DealSide.BUY) == (time2, buy_prices2,)
+        assert prices.get_last_side_depth_of_market(1, DealSide.SELL) == (time2, sell_prices2,)
+
+    def test_are_depths_of_markets_known(self):
+        prices = MarketsDepthsBuffer(2)
+
+        assert not prices.are_depths_of_markets_known(1)
+        assert not prices.are_depths_of_markets_known(1, 2)
+
+        prices.register_depths(1, datetime.utcnow(), (), ())
+
+        assert prices.are_depths_of_markets_known(1)
+        assert not prices.are_depths_of_markets_known(1, 2)
+
+        prices.register_depths(2, datetime.utcnow(), (), ())
+
+        assert prices.are_depths_of_markets_known(1)
+        assert prices.are_depths_of_markets_known(1, 2)
