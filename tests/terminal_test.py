@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, List, Mapping, Optional, Sequence, 
 from unittest.mock import ANY, Mock
 
 import pytest
+from pytest_mock import MockFixture
 
 from galts_trade_api.asset import DealSide
 from galts_trade_api.terminal import MarketsDepthsBuffer, Terminal
@@ -449,14 +450,19 @@ class TestTerminal:
         assert exchange.markets_by_tag['market-a'] is exchange.markets_by_id[1]
 
     @pytest.mark.asyncio
-    async def test_subscribe_to_prices_calls_factory(self):
+    async def test_subscribe_to_prices_calls_dependencies(self, mocker: MockFixture):
         keys = []
 
+        depths_updater_mock = mocker.patch('galts_trade_api.terminal.depths_updater')
         factory = AsyncMock(spec_set=TransportFactory)
+
+        async def cb(*args): pass
+
         terminal = factory_terminal(factory)
-        await terminal.subscribe_to_prices(lambda: None, keys)
+        await terminal.subscribe_to_prices(cb, keys)
 
         factory.consume_price_depth.assert_called_once_with(ANY, keys)
+        depths_updater_mock.assert_called_once_with(terminal, cb)
 
     @pytest.mark.asyncio
     async def test_subscribe_to_prices(self):
