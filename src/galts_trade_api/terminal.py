@@ -51,7 +51,7 @@ class Terminal:
         self._transport_factory = value
 
     @property
-    def depths(self) -> MarketsDepthsBuffer:
+    def depths(self):
         return self._depths
 
     @property
