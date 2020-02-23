@@ -488,16 +488,12 @@ class TestMarketsDepthsBuffer:
 
         assert prices.limit_per_market == limit
 
-    @pytest.mark.parametrize(
-        'limit_per_market, expected_msg',
-        fixture_constructor_exception_on_wrong_count_argument()
-    )
+    @pytest.mark.parametrize('limit_per_market', [0, -5])
     def test_constructor_exception_on_wrong_count_argument(
         self,
-        limit_per_market: Any,
-        expected_msg: str
+        limit_per_market: Any
     ):
-        with pytest.raises(ValueError, match=expected_msg):
+        with pytest.raises(ValueError, match='limit_per_market should be'):
             MarketsDepthsBuffer(limit_per_market)
 
     @pytest.mark.parametrize('expected_msg, method_name, args', fixture_no_prices_after_init())
