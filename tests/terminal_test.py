@@ -467,11 +467,6 @@ class FakeTransportFactory(TransportFactory):
         return result
 
 
-def fixture_constructor_exception_on_wrong_count_argument():
-    yield 0, 'limit_per_market should be'
-    yield -5, 'limit_per_market should be'
-
-
 def fixture_no_prices_after_init():
     expected_msg = 'Prices for market with id 1 are unknown'
 
