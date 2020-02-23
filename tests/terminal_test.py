@@ -467,6 +467,11 @@ class FakeTransportFactory(TransportFactory):
         return result
 
 
+def fixture_constructor_exception_on_wrong_count_argument():
+    yield 0, 'limit_per_market should be'
+    yield -5, 'limit_per_market should be'
+
+
 def fixture_no_prices_after_init():
     expected_msg = 'Prices for market with id 1 are unknown'
 
@@ -483,11 +488,17 @@ class TestMarketsDepthsBuffer:
 
         assert prices.limit_per_market == limit
 
-    def test_constructor_exception_on_wrong_count_argument(self):
-        with pytest.raises(ValueError, match='limit_per_market should be'):
-            MarketsDepthsBuffer(0)
-        with pytest.raises(ValueError, match='limit_per_market should be'):
-            MarketsDepthsBuffer(-5)
+    @pytest.mark.parametrize(
+        'limit_per_market, expected_msg',
+        fixture_constructor_exception_on_wrong_count_argument()
+    )
+    def test_constructor_exception_on_wrong_count_argument(
+        self,
+        limit_per_market: Any,
+        expected_msg: str
+    ):
+        with pytest.raises(ValueError, match=expected_msg):
+            MarketsDepthsBuffer(limit_per_market)
 
     @pytest.mark.parametrize('expected_msg, method_name, args', fixture_no_prices_after_init())
     def test_no_prices_after_init(self, expected_msg: str, method_name: str, args: Tuple[Any]):
