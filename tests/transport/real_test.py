@@ -490,14 +490,14 @@ def fixture_consume_price_depth_parse_json():
         market_tag,
         symbol_tag,
         datetime.datetime(2000, 1, 1, 0, 1, 23),
-        [
-            [Decimal('1.2'), Decimal('3.4'), None],
-            [Decimal('5.6'), Decimal('7.8'), Decimal('9')],
-        ],
-        [
-            [Decimal('1.2'), Decimal('3.4'), Decimal('5')],
-            [Decimal('6.7'), Decimal('8.9'), None],
-        ],
+        (
+            (Decimal('1.2'), Decimal('3.4'), None,),
+            (Decimal('5.6'), Decimal('7.8'), Decimal('9'),),
+        ),
+        (
+            (Decimal('1.2'), Decimal('3.4'), Decimal('5'),),
+            (Decimal('6.7'), Decimal('8.9'), None,),
+        ),
     ]
 
 

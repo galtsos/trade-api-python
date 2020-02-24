@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import datetime
 from asyncio import Event, wait_for
+from collections import deque
+from copy import copy
 from decimal import Decimal
-from typing import Awaitable, Callable, Collection, Dict, List, Mapping, MutableMapping, Optional, \
-    Tuple, Union
+from typing import Awaitable, Callable, Collection, Deque, Dict, Mapping, MutableMapping, \
+    Optional, Tuple, Union
 
-from .asset import Asset, Symbol
+from . import logger
+from .asset import Asset, DealSide, Symbol
 from .exchange import Exchange, Market
 from .tools import find_duplicates_in_list
 from .transport import DepthConsumeKey, TransportFactory
@@ -12,14 +17,23 @@ from .transport import DepthConsumeKey, TransportFactory
 PriceLevelWithoutFee = Tuple[Decimal, Decimal]
 PriceLevelWithFee = Tuple[Decimal, Decimal, Optional[Decimal]]
 PriceLevel = Union[PriceLevelWithoutFee, PriceLevelWithFee]
-PriceDepth = List[PriceLevel]
+PriceDepth = Tuple[PriceLevel]
+FullDepth = Tuple[PriceDepth, PriceDepth]
 
 OnPriceCallable = Callable[[str, str, str, datetime.datetime, PriceDepth, PriceDepth], Awaitable]
 
 
 class Terminal:
-    def __init__(self, transport: TransportFactory):
+    @classmethod
+    def factory(cls, transport: TransportFactory, depths_limit_per_market: int = 1) -> Terminal:
+        depths = MarketsDepthsBuffer(depths_limit_per_market)
+
+        return cls(transport, depths)
+
+    def __init__(self, transport: TransportFactory, depths: MarketsDepthsBuffer):
         self._transport_factory: TransportFactory = transport
+        self._depths: MarketsDepthsBuffer = depths
+
         self._exchange_entities_inited = Event()
         self._assets_by_id: Dict[int, Asset] = {}
         self._assets_by_tag: Dict[str, Asset] = {}
@@ -35,6 +49,10 @@ class Terminal:
     @transport_factory.setter
     def transport_factory(self, value: TransportFactory):
         self._transport_factory = value
+
+    @property
+    def depths(self):
+        return self._depths
 
     @property
     def assets_by_id(self):
@@ -85,8 +103,10 @@ class Terminal:
         callback: OnPriceCallable,
         consume_keys: Optional[Collection[DepthConsumeKey]] = None
     ) -> None:
+        updater = depths_updater(self, callback)
+
         await self.transport_factory.consume_price_depth(
-            lambda event: callback(*event),
+            lambda event: updater(*event),
             consume_keys
         )
 
@@ -157,3 +177,106 @@ class Terminal:
             self._exchanges_by_id[entity['exchange_id']].add_market(Market(**entity))
 
         self._exchange_entities_inited.set()
+
+
+# Term from https://www.investopedia.com/terms/d/depth-of-market.asp
+class MarketsDepthsBuffer:
+    def __init__(self, limit_per_market: int = 1):
+        self._limit_per_market = int(limit_per_market)
+        self._depths: Dict[int, Deque[Tuple[datetime.datetime, FullDepth]]] = {}
+
+        if self.limit_per_market < 1:
+            raise ValueError('Value of limit_per_market should be equal to or greater than 1')
+
+    @property
+    def limit_per_market(self):
+        return self._limit_per_market
+
+    def register_depths(
+        self,
+        market_id: int,
+        time: datetime.datetime,
+        bids: PriceDepth,
+        asks: PriceDepth
+    ) -> None:
+        if market_id not in self._depths:
+            self._depths[market_id] = deque(maxlen=self.limit_per_market)
+
+        record = (time, (bids, asks,),)
+
+        if len(self._depths[market_id]) > 0 and self._depths[market_id][0] == record:
+            return
+
+        self._depths[market_id].appendleft(record)
+
+    def get_depths_of_market(self, market_id: int) -> Deque[Tuple[datetime.datetime, FullDepth]]:
+        if not self.are_depths_of_markets_known(market_id):
+            raise ValueError(f'Prices for market with id {market_id} are unknown')
+
+        return self._depths[market_id]
+
+    def get_last_depth_of_market(self, market_id: int) -> Tuple[datetime.datetime, FullDepth]:
+        return self.get_depths_of_market(market_id)[0]
+
+    def get_last_side_depth_of_market(
+        self,
+        market_id: int,
+        side: DealSide
+    ) -> Tuple[datetime.datetime, PriceDepth]:
+        time, last_depth = self.get_last_depth_of_market(market_id)
+
+        # bids - to sell, asks - to buy
+        if side == DealSide.SELL:
+            return time, last_depth[0]
+        elif side == DealSide.BUY:
+            return time, last_depth[1]
+        else:
+            raise ValueError(f'Cannot get part of full depth record for deal side {side}')
+
+    def are_depths_of_markets_known(self, *market_ids: int) -> bool:
+        are_known = [id_ in self._depths for id_ in market_ids]
+
+        return all(are_known)
+
+
+def depths_updater(terminal: Terminal, callback: OnPriceCallable) -> OnPriceCallable:
+    busyness_flag = Event()
+    latest_update = []
+
+    async def on_depth_update(
+        exchange_tag: str,
+        market_tag: str,
+        symbol_tag: str,
+        time: datetime.datetime,
+        bids: PriceDepth,
+        asks: PriceDepth
+    ) -> None:
+        nonlocal latest_update
+
+        try:
+            exchange = terminal.exchanges_by_tag[exchange_tag]
+            market = exchange.markets_by_tag[market_tag]
+            terminal.depths.register_depths(market.id, time, bids, asks)
+        except Exception:
+            logger.exception('cannot_find_market', exchange_tag=exchange_tag, market_tag=market_tag)
+
+        actual_update = (exchange_tag, market_tag, symbol_tag, time, bids, asks,)
+        latest_update = actual_update
+
+        if busyness_flag.is_set():
+            logger.debug('Previous depths update callback has not yet completed')
+            return
+
+        busyness_flag.set()
+
+        while True:
+            await callback(*actual_update)
+
+            if actual_update == latest_update:
+                break
+
+            actual_update = copy(latest_update)
+
+        busyness_flag.clear()
+
+    return on_depth_update

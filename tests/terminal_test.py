@@ -1,12 +1,15 @@
 import asyncio
 from asyncio import Event
 from datetime import datetime
-from typing import Awaitable, Callable, List, Mapping, Optional, Sequence
+from decimal import Decimal
+from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 from unittest.mock import ANY, Mock
 
 import pytest
+from pytest_mock import MockFixture
 
-from galts_trade_api.terminal import Terminal
+from galts_trade_api.asset import DealSide
+from galts_trade_api.terminal import MarketsDepthsBuffer, Terminal, depths_updater
 from galts_trade_api.transport import DepthConsumeKey, MessageConsumerCollection, TransportFactory
 from .utils import AsyncMock
 
@@ -233,12 +236,22 @@ def fixture_init_exchange_entities_ignore_deleted_entities():
 
 
 class TestTerminal:
-    def test_transport_factory_property(self):
+    def test_factory_setup_properties(self):
+        factory = Mock(spec_set=TransportFactory)
+
+        result = Terminal.factory(factory, 5)
+
+        assert result.transport_factory is factory
+        assert result.depths.limit_per_market == 5
+
+    def test_properties(self):
         factory1 = Mock(spec_set=TransportFactory)
         factory2 = Mock(spec_set=TransportFactory)
+        depths = MarketsDepthsBuffer()
 
-        terminal = Terminal(factory1)
+        terminal = Terminal(factory1, depths)
         assert terminal.transport_factory is factory1
+        assert terminal.depths is depths
         terminal.transport_factory = factory2
         assert terminal.transport_factory is factory2
 
@@ -246,14 +259,14 @@ class TestTerminal:
     @pytest.mark.parametrize('loop_debug', fixture_init_transport_calls_factory())
     async def test_init_transport_calls_factory(self, loop_debug: bool):
         factory = AsyncMock(spec_set=TransportFactory)
-        terminal = Terminal(factory)
+        terminal = factory_terminal(factory)
         await terminal.init_transport(loop_debug)
 
         factory.init.assert_called_once_with(loop_debug)
 
     def test_shutdown_transport_calls_factory(self):
         factory = Mock(spec_set=TransportFactory)
-        terminal = Terminal(factory)
+        terminal = factory_terminal(factory)
         terminal.shutdown_transport()
 
         factory.shutdown.assert_called_once_with()
@@ -264,15 +277,13 @@ class TestTerminal:
         pass
 
     def test_is_exchange_entities_not_inited_after_instantiation(self):
-        factory = Mock(spec_set=TransportFactory)
-        terminal = Terminal(factory)
+        terminal = factory_terminal()
 
         assert not terminal.is_exchange_entities_inited()
 
     @pytest.mark.asyncio
     async def test_wait_exchange_entities_inited_exception_after_timeout(self):
-        factory = Mock(spec_set=TransportFactory)
-        terminal = Terminal(factory)
+        terminal = factory_terminal()
 
         with pytest.raises(asyncio.TimeoutError):
             await terminal.wait_exchange_entities_inited(0.001)
@@ -280,7 +291,7 @@ class TestTerminal:
     @pytest.mark.asyncio
     async def test_init_exchange_entities_calls_factory(self):
         factory = AsyncMock(spec_set=TransportFactory)
-        terminal = Terminal(factory)
+        terminal = factory_terminal(factory)
         await terminal.init_exchange_entities()
 
         factory.get_exchange_entities.assert_called_once_with(ANY)
@@ -297,8 +308,8 @@ class TestTerminal:
     ):
         factory_fake = FakeTransportFactory()
         factory_fake.get_exchange_entities_data = data
+        terminal = factory_terminal(factory_fake)
 
-        terminal = Terminal(factory_fake)
         with pytest.raises(KeyError, match=f'Key "{expected_key_name}" is required'):
             await terminal.init_exchange_entities()
 
@@ -314,8 +325,8 @@ class TestTerminal:
     ):
         factory_fake = FakeTransportFactory()
         factory_fake.get_exchange_entities_data = data
+        terminal = factory_terminal(factory_fake)
 
-        terminal = Terminal(factory_fake)
         with pytest.raises(ValueError, match=expected_message):
             await terminal.init_exchange_entities()
 
@@ -336,7 +347,7 @@ class TestTerminal:
         factory_fake = FakeTransportFactory()
         factory_fake.get_exchange_entities_data = entities_data
 
-        terminal = Terminal(factory_fake)
+        terminal = factory_terminal(factory_fake)
         await terminal.init_exchange_entities()
 
         assert list(terminal.assets_by_id.keys()) == expected_assets_ids
@@ -351,7 +362,7 @@ class TestTerminal:
         factory_fake = FakeTransportFactory()
         factory_fake.get_exchange_entities_data = data
 
-        terminal = Terminal(factory_fake)
+        terminal = factory_terminal(factory_fake)
         await terminal.init_exchange_entities()
 
         assert terminal.is_exchange_entities_inited()
@@ -360,7 +371,7 @@ class TestTerminal:
     @pytest.mark.asyncio
     async def test_getters_return_inited_data(self):
         factory_fake = FakeTransportFactory()
-        terminal = Terminal(factory_fake)
+        terminal = factory_terminal(factory_fake)
 
         getters = [
             terminal.assets_by_id,
@@ -377,57 +388,7 @@ class TestTerminal:
             with pytest.raises(KeyError):
                 _ = getter[1]
 
-        data = {
-            'assets': {
-                1: {
-                    'id': 1,
-                    'tag': 'AS1',
-                    'name': 'Asset A',
-                    'precision': 2,
-                    'create_time': None,
-                    'delete_time': None,
-                },
-                2: {
-                    'id': 2,
-                    'tag': 'AS2',
-                    'name': 'Asset B',
-                    'precision': 2,
-                    'create_time': None,
-                    'delete_time': None,
-                },
-            },
-            'symbols': {
-                1: {
-                    'id': 1,
-                    'base_asset_id': 1,
-                    'quote_asset_id': 2,
-                    'create_time': None,
-                    'delete_time': None,
-                },
-            },
-            'exchanges': {
-                1: {
-                    'id': 1,
-                    'tag': 'exchange-a',
-                    'name': 'Exchange',
-                    'create_time': None,
-                    'delete_time': None,
-                    'disable_time': None,
-                },
-            },
-            'markets': {
-                1: {
-                    'id': 1,
-                    'custom_tag': 'market-a',
-                    'exchange_id': 1,
-                    'symbol_id': 1,
-                    'trade_endpoint': 'test.local',
-                    'create_time': None,
-                    'delete_time': None,
-                },
-            },
-        }
-        factory_fake.get_exchange_entities_data = data
+        factory_fake.get_exchange_entities_data = get_entities_data_with_single_market()
 
         await terminal.init_exchange_entities()
 
@@ -447,19 +408,25 @@ class TestTerminal:
         assert exchange.markets_by_tag['market-a'] is exchange.markets_by_id[1]
 
     @pytest.mark.asyncio
-    async def test_subscribe_to_prices_calls_factory(self):
+    async def test_subscribe_to_prices_calls_dependencies(self, mocker: MockFixture):
         keys = []
 
+        depths_updater_mock = mocker.patch('galts_trade_api.terminal.depths_updater')
         factory = AsyncMock(spec_set=TransportFactory)
-        terminal = Terminal(factory)
-        await terminal.subscribe_to_prices(lambda: None, keys)
+
+        async def cb(*args): pass
+
+        terminal = factory_terminal(factory)
+        await terminal.subscribe_to_prices(cb, keys)
 
         factory.consume_price_depth.assert_called_once_with(ANY, keys)
+        depths_updater_mock.assert_called_once_with(terminal, cb)
 
     @pytest.mark.asyncio
-    async def test_subscribe_to_prices(self):
+    async def test_subscribe_to_prices_correctly_init_callback(self, mocker: MockFixture):
+        mocker.patch('galts_trade_api.terminal.logger')
         is_called = Event()
-        data = ('foo', {'bar': 100500})
+        data = ('exchange', 'market', 'symbol', datetime.utcnow(), (), (),)
         factory_fake = FakeTransportFactory()
         factory_fake.consume_price_depth_data = data
 
@@ -467,7 +434,7 @@ class TestTerminal:
             assert args == data
             is_called.set()
 
-        terminal = Terminal(factory_fake)
+        terminal = factory_terminal(factory_fake)
         keys = []
         await terminal.subscribe_to_prices(cb, keys)
         assert is_called.is_set()
@@ -498,3 +465,391 @@ class FakeTransportFactory(TransportFactory):
         await result.send(self.consume_price_depth_data)
 
         return result
+
+
+def fixture_no_prices_after_init():
+    expected_msg = 'Prices for market with id 1 are unknown'
+
+    yield expected_msg, 'get_depths_of_market', (1,)
+    yield expected_msg, 'get_last_depth_of_market', (1,)
+    yield expected_msg, 'get_last_side_depth_of_market', (1, DealSide.BUY,)
+    yield expected_msg, 'get_last_side_depth_of_market', (1, DealSide.SELL,)
+
+
+class TestMarketsDepthsBuffer:
+    def test_constructor_set_limit(self):
+        limit = 10
+        prices = MarketsDepthsBuffer(limit)
+
+        assert prices.limit_per_market == limit
+
+    @pytest.mark.parametrize('limit_per_market', [0, -5])
+    def test_constructor_exception_on_wrong_count_argument(self, limit_per_market: Any):
+        with pytest.raises(ValueError, match='limit_per_market should be'):
+            MarketsDepthsBuffer(limit_per_market)
+
+    @pytest.mark.parametrize('expected_msg, method_name, args', fixture_no_prices_after_init())
+    def test_no_prices_after_init(self, expected_msg: str, method_name: str, args: Tuple[Any]):
+        prices = MarketsDepthsBuffer(2)
+
+        with pytest.raises(ValueError, match=expected_msg):
+            getattr(prices, method_name)(*args)
+
+    def test_register_depths_appends_to_left(self):
+        prices = MarketsDepthsBuffer(2)
+
+        time1 = datetime.utcnow()
+        sell_prices1 = ((Decimal('1'), Decimal('2')),)
+        buy_prices1 = ((Decimal('3'), Decimal('4')),)
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        time2 = datetime.utcnow()
+        sell_prices2 = ((Decimal('2'), Decimal('3')),)
+        buy_prices2 = ((Decimal('4'), Decimal('5')),)
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time2, (sell_prices2, buy_prices2,)),
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        time3 = datetime.utcnow()
+        sell_prices3 = ((Decimal('3'), Decimal('4')),)
+        buy_prices3 = ((Decimal('5'), Decimal('6')),)
+        prices.register_depths(1, time3, sell_prices3, buy_prices3)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time3, (sell_prices3, buy_prices3,)),
+            (time2, (sell_prices2, buy_prices2,)),
+        ]
+
+    def test_register_depths_dont_append_duplicates(self):
+        prices = MarketsDepthsBuffer(2)
+
+        time1 = datetime.utcnow()
+        sell_prices1 = ((Decimal('1'), Decimal('2')),)
+        buy_prices1 = ((Decimal('3'), Decimal('4')),)
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        time2 = datetime.utcnow()
+        sell_prices2 = ((Decimal('2'), Decimal('3')),)
+        buy_prices2 = ((Decimal('4'), Decimal('5')),)
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time2, (sell_prices2, buy_prices2,)),
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert list(prices.get_depths_of_market(1)) == [
+            (time2, (sell_prices2, buy_prices2,)),
+            (time1, (sell_prices1, buy_prices1,)),
+        ]
+
+    def test_get_last_depth_of_market(self):
+        prices = MarketsDepthsBuffer(2)
+
+        time1 = datetime.utcnow()
+        sell_prices1 = ((Decimal('1'), Decimal('2')),)
+        buy_prices1 = ((Decimal('3'), Decimal('4')),)
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert prices.get_last_depth_of_market(1) == (time1, (sell_prices1, buy_prices1,))
+
+        time2 = datetime.utcnow()
+        sell_prices2 = ((Decimal('3'), Decimal('4')),)
+        buy_prices2 = ((Decimal('5'), Decimal('6')),)
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert prices.get_last_depth_of_market(1) == (time2, (sell_prices2, buy_prices2,))
+
+    def test_get_last_side_depth_of_market_exception_for_unknown_side(self):
+        prices = MarketsDepthsBuffer(2)
+        prices.register_depths(1, datetime.utcnow(), (), ())
+
+        with pytest.raises(ValueError, match=' for deal side 100500'):
+            prices.get_last_side_depth_of_market(1, 100500)
+
+    def test_get_last_side_depth_of_market_returns_side_prices(self):
+        prices = MarketsDepthsBuffer(2)
+
+        time1 = datetime.utcnow()
+        sell_prices1 = ((Decimal('1'), Decimal('2')),)
+        buy_prices1 = ((Decimal('3'), Decimal('4')),)
+        prices.register_depths(1, time1, sell_prices1, buy_prices1)
+
+        assert prices.get_last_side_depth_of_market(1, DealSide.BUY) == (time1, buy_prices1,)
+        assert prices.get_last_side_depth_of_market(1, DealSide.SELL) == (time1, sell_prices1,)
+
+        time2 = datetime.utcnow()
+        sell_prices2 = ((Decimal('3'), Decimal('4'),),)
+        buy_prices2 = ((Decimal('5'), Decimal('6'),),)
+        prices.register_depths(1, time2, sell_prices2, buy_prices2)
+
+        assert prices.get_last_side_depth_of_market(1, DealSide.BUY) == (time2, buy_prices2,)
+        assert prices.get_last_side_depth_of_market(1, DealSide.SELL) == (time2, sell_prices2,)
+
+    def test_are_depths_of_markets_known(self):
+        prices = MarketsDepthsBuffer(2)
+
+        assert not prices.are_depths_of_markets_known(1)
+        assert not prices.are_depths_of_markets_known(1, 2)
+
+        prices.register_depths(1, datetime.utcnow(), (), ())
+
+        assert prices.are_depths_of_markets_known(1)
+        assert not prices.are_depths_of_markets_known(1, 2)
+
+        prices.register_depths(2, datetime.utcnow(), (), ())
+
+        assert prices.are_depths_of_markets_known(1)
+        assert prices.are_depths_of_markets_known(1, 2)
+
+
+def fixture_several_depth_updates():
+    time1 = datetime.utcnow()
+    bids1 = ((Decimal('1.0'), Decimal('2.0'),),)
+    asks1 = ((Decimal('2.0'), Decimal('3.0'),),)
+    depth_update1 = ('exchange-a', 'market-a', 'symbol', time1, bids1, asks1,)
+
+    time2 = datetime.utcnow()
+    bids2 = ((Decimal('3.0'), Decimal('4.0'),),)
+    asks2 = ((Decimal('4.0'), Decimal('5.0'),),)
+    depth_update2 = ('exchange-a', 'market-a', 'symbol', time2, bids2, asks2,)
+
+    time3 = datetime.utcnow()
+    bids3 = ((Decimal('5.0'), Decimal('6.0'),),)
+    asks3 = ((Decimal('6.0'), Decimal('7.0'),),)
+    depth_update3 = ('exchange-a', 'market-a', 'symbol', time3, bids3, asks3,)
+
+    yield [depth_update1, depth_update2, depth_update3]
+
+
+class TestDepthsUpdater:
+    @pytest.mark.asyncio
+    async def test_exception_about_market(self, mocker: MockFixture):
+        logger_mock = mocker.patch('galts_trade_api.terminal.logger')
+        is_called = Event()
+        data = ('exchange', 'market', 'symbol', datetime.utcnow(), (), (),)
+
+        async def cb(*args):
+            assert args == data
+            is_called.set()
+
+        terminal = factory_terminal()
+        result = depths_updater(terminal, cb)
+        await result(*data)
+
+        assert is_called.is_set()
+        logger_mock.exception.assert_called_once_with(
+            'cannot_find_market',
+            exchange_tag='exchange',
+            market_tag='market'
+        )
+
+    @pytest.mark.asyncio
+    async def test_when_entities_exist(self):
+        is_called = Event()
+        time = datetime.utcnow()
+        bids = ()
+        asks = ()
+        depth_update = ('exchange-a', 'market-a', 'symbol', time, bids, asks,)
+
+        async def cb(*args):
+            assert args == depth_update
+            is_called.set()
+
+        factory_fake = FakeTransportFactory()
+        terminal = factory_terminal(factory_fake)
+
+        entities_data = get_entities_data_with_single_market()
+        factory_fake.get_exchange_entities_data = entities_data
+
+        await terminal.init_exchange_entities()
+
+        with pytest.raises(ValueError, match='Prices for market with id 1 are unknown'):
+            terminal.depths.get_depths_of_market(1)
+
+        result = depths_updater(terminal, cb)
+        await result(*depth_update)
+
+        assert is_called.is_set()
+
+        assert len(terminal.depths.get_depths_of_market(1)) == 1
+        assert terminal.depths.get_last_depth_of_market(1) == (time, (bids, asks,),)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('updates', fixture_several_depth_updates())
+    async def test_busy_behaviour_when_callback_is_fast(
+        self,
+        mocker: MockFixture,
+        updates: Sequence[Tuple]
+    ):
+        logger_mock = mocker.patch('galts_trade_api.terminal.logger')
+        is_called = Event()
+
+        async def cb(*args):
+            is_called.set()
+
+        factory_fake = FakeTransportFactory()
+        terminal = factory_terminal(factory_fake, MarketsDepthsBuffer(5))
+
+        entities_data = get_entities_data_with_single_market()
+        factory_fake.get_exchange_entities_data = entities_data
+
+        await terminal.init_exchange_entities()
+
+        with pytest.raises(ValueError, match='Prices for market with id 1 are unknown'):
+            terminal.depths.get_depths_of_market(1)
+
+        result = depths_updater(terminal, cb)
+        await result(*updates[0])
+
+        assert is_called.is_set()
+
+        assert len(terminal.depths.get_depths_of_market(1)) == 1
+        depth_record = self._form_depth_record_from_update(updates[0])
+        assert terminal.depths.get_last_depth_of_market(1) == depth_record
+
+        is_called.clear()
+
+        coroutines = [result(*update) for update in updates[1:]]
+        await asyncio.gather(*coroutines)
+
+        assert is_called.is_set()
+        logger_mock.assert_not_called()
+        assert len(terminal.depths.get_depths_of_market(1)) == len(updates)
+        depth_record = self._form_depth_record_from_update(updates[-1])
+        assert terminal.depths.get_last_depth_of_market(1) == depth_record
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('updates', fixture_several_depth_updates())
+    async def test_busy_behaviour_when_callback_is_slow(
+        self,
+        mocker: MockFixture,
+        updates: Sequence[Tuple]
+    ):
+        logger_mock = mocker.patch('galts_trade_api.terminal.logger')
+        is_called = Event()
+
+        async def cb(*args):
+            is_called.set()
+            await asyncio.sleep(0.2)
+
+        factory_fake = FakeTransportFactory()
+        terminal = factory_terminal(factory_fake, MarketsDepthsBuffer(5))
+
+        entities_data = get_entities_data_with_single_market()
+        factory_fake.get_exchange_entities_data = entities_data
+
+        await terminal.init_exchange_entities()
+
+        with pytest.raises(ValueError, match='Prices for market with id 1 are unknown'):
+            terminal.depths.get_depths_of_market(1)
+
+        result = depths_updater(terminal, cb)
+        await result(*updates[0])
+
+        assert is_called.is_set()
+
+        assert len(terminal.depths.get_depths_of_market(1)) == 1
+        depth_record = self._form_depth_record_from_update(updates[0])
+        assert terminal.depths.get_last_depth_of_market(1) == depth_record
+
+        is_called.clear()
+
+        coroutines = [result(*update) for update in updates[1:]]
+        await asyncio.gather(*coroutines)
+
+        assert is_called.is_set()
+        logger_mock.debug.assert_called_once_with(
+            'Previous depths update callback has not yet completed'
+        )
+        assert len(terminal.depths.get_depths_of_market(1)) == len(updates)
+        depth_record = self._form_depth_record_from_update(updates[-1])
+        assert terminal.depths.get_last_depth_of_market(1) == depth_record
+
+    @classmethod
+    def _form_depth_record_from_update(cls, update: Sequence) -> Tuple:
+        return update[3], (update[4], update[5],)
+
+
+def factory_terminal(
+    factory: Optional[TransportFactory] = None,
+    depths: Optional[MarketsDepthsBuffer] = None
+) -> Terminal:
+    if factory is None:
+        factory = AsyncMock(spec_set=TransportFactory)
+    if depths is None:
+        depths = MarketsDepthsBuffer()
+
+    return Terminal(factory, depths)
+
+
+def get_entities_data_with_single_market() -> Dict[str, Any]:
+    return {
+        'assets': {
+            1: {
+                'id': 1,
+                'tag': 'AS1',
+                'name': 'Asset A',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+            2: {
+                'id': 2,
+                'tag': 'AS2',
+                'name': 'Asset B',
+                'precision': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+        'symbols': {
+            1: {
+                'id': 1,
+                'base_asset_id': 1,
+                'quote_asset_id': 2,
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+        'exchanges': {
+            1: {
+                'id': 1,
+                'tag': 'exchange-a',
+                'name': 'Exchange',
+                'create_time': None,
+                'delete_time': None,
+                'disable_time': None,
+            },
+        },
+        'markets': {
+            1: {
+                'id': 1,
+                'custom_tag': 'market-a',
+                'exchange_id': 1,
+                'symbol_id': 1,
+                'trade_endpoint': 'test.local',
+                'create_time': None,
+                'delete_time': None,
+            },
+        },
+    }

@@ -4,9 +4,7 @@ import signal
 from functools import partial
 from typing import AbstractSet, Any, Awaitable, Callable, Dict, List, Optional
 
-from .structlogger import get_logger
-
-logger = get_logger('galts_trade_api')
+from . import logger
 
 LoopExceptionHandlerCallable = Callable[[asyncio.AbstractEventLoop, Dict[str, Any]], Any]
 

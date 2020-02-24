@@ -309,8 +309,10 @@ class RealTransportProcess(Process):
     ) -> None:
         body = json.loads(message.body)
 
-        for depth in body['depth'].values():
-            for price_level in depth:
+        for kind in body['depth'].keys():
+            new_depth = []
+
+            for price_level in body['depth'][kind]:
                 rate = Decimal(price_level[0])
                 amount = Decimal(price_level[1])
 
@@ -319,7 +321,9 @@ class RealTransportProcess(Process):
                 else:
                     fee = None
 
-                price_level[:] = [rate, amount, fee]
+                new_depth.append((rate, amount, fee,))
+
+            body['depth'][kind] = tuple(new_depth)
 
         args = [
             body['exchange'],
